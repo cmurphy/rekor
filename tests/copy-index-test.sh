@@ -133,7 +133,7 @@ run_copy() {
     go run cmd/copy-index/main.go \
         --mysql-dsn "${MYSQL_USER}:${MYSQL_PASSWORD}@tcp(${MYSQL_HOST}:${MYSQL_PORT})/${MYSQL_DB}" \
         --redis-hostname $REDIS_HOST --redis-port $REDIS_PORT --redis-password $REDIS_PASSWORD \
-        --batch-size 5
+        --batch-size 3 --concurrency 2
     set +e
 }
 

@@ -39,6 +39,7 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
 	"github.com/redis/go-redis/v9"
+	"golang.org/x/sync/errgroup"
 	"sigs.k8s.io/release-utils/version"
 )
 
@@ -71,6 +72,7 @@ var (
 	mysqlDSN                = flag.String("mysql-dsn", "", "MySQL Data Source Name")
 	batchSize               = flag.Int("batch-size", 10000, "Number of Redis entries to scan per batch (use for testing)")
 	versionFlag             = flag.Bool("version", false, "Print the current version of Copy Index")
+	concurrency             = flag.Int("concurrency", 1, "Number of workers to use for copy")
 	dryRun                  = flag.Bool("dry-run", false, "Dry run - don't actually insert into MySQL")
 )
 
@@ -145,26 +147,35 @@ func getRedisClient() (*redisClient, error) {
 // doCopy pulls search index entries from the Redis database and copies them into the MySQL database.
 func doCopy(mysqlClient *mysqlClient, redisClient *redisClient) error {
 	ctx, _ := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	group, ctx := errgroup.WithContext(ctx)
+	group.SetLimit(*concurrency)
 	var err error
 	var done bool
 	var keys []string
 	for !done {
-		keys, done, err = redisClient.getIndexKeys(ctx)
-		if err != nil {
-			return err
-		}
-		for _, k := range keys {
-			uuids, err := redisClient.getUUIDsForKey(ctx, k)
+		group.Go(func() error {
+			keys, done, err = redisClient.getIndexKeys(ctx)
 			if err != nil {
 				return err
 			}
-			for _, v := range uuids {
-				err = mysqlClient.idempotentAddToIndex(ctx, k, v)
+			for _, k := range keys {
+				uuids, err := redisClient.getUUIDsForKey(ctx, k)
 				if err != nil {
 					return err
 				}
+				for _, v := range uuids {
+					err = mysqlClient.idempotentAddToIndex(ctx, k, v)
+					if err != nil {
+						return err
+					}
+				}
 			}
-		}
+			return nil
+		})
+	}
+	err = group.Wait()
+	if err != nil {
+		return fmt.Errorf("error running copy: %v", err)
 	}
 	fmt.Println("Copy complete")
 	return nil
