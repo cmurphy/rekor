@@ -123,7 +123,7 @@ func NewAPI(treeID uint) (*API, error) {
 	tid := int64(treeID)
 	if tid == 0 {
 		log.Logger.Info("No tree ID specified, attempting to create a new tree")
-		t, err := trillianclient.CreateAndInitTree(ctx, logAdminClient, logClient)
+		t, err := trillianclient.CreateAndInitTree(ctx, logAdminClient, logClient) // FIXME:tessera
 		if err != nil {
 			return nil, fmt.Errorf("create and init tree: %w", err)
 		}

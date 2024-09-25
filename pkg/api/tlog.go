@@ -37,7 +37,7 @@ import (
 
 // GetLogInfoHandler returns the current size of the tree and the STH
 func GetLogInfoHandler(params tlog.GetLogInfoParams) middleware.Responder {
-	tc := trillianclient.NewTrillianClient(params.HTTPRequest.Context(), api.logClient, api.logID)
+	tc := trillianclient.NewTrillianClient(params.HTTPRequest.Context(), api.logClient, api.logID) // FIXME:tessera
 
 	// for each inactive shard, get the loginfo
 	var inactiveShards []*models.InactiveShardLogInfo
@@ -85,7 +85,7 @@ func GetLogInfoHandler(params tlog.GetLogInfoParams) middleware.Responder {
 		return tlog.NewGetLogInfoOK().WithPayload(&logInfo)
 	}
 
-	resp := tc.GetLatest(0)
+	resp := tc.GetLatest(0) // FIXME:tessera
 	if resp.Status != codes.OK {
 		return handleRekorAPIError(params, http.StatusInternalServerError, fmt.Errorf("grpc error: %w", resp.Err), trillianCommunicationError)
 	}
@@ -125,17 +125,17 @@ func GetLogProofHandler(params tlog.GetLogProofParams) middleware.Responder {
 	if *params.FirstSize > params.LastSize {
 		return handleRekorAPIError(params, http.StatusBadRequest, nil, fmt.Sprintf(firstSizeLessThanLastSize, *params.FirstSize, params.LastSize))
 	}
-	tc := trillianclient.NewTrillianClient(params.HTTPRequest.Context(), api.logClient, api.logID)
+	tc := trillianclient.NewTrillianClient(params.HTTPRequest.Context(), api.logClient, api.logID) // FIXME:tessera
 	if treeID := swag.StringValue(params.TreeID); treeID != "" {
 		id, err := strconv.Atoi(treeID)
 		if err != nil {
 			log.Logger.Infof("Unable to convert %s to string, skipping initializing client with Tree ID: %v", treeID, err)
 		} else {
-			tc = trillianclient.NewTrillianClient(params.HTTPRequest.Context(), api.logClient, int64(id))
+			tc = trillianclient.NewTrillianClient(params.HTTPRequest.Context(), api.logClient, int64(id)) // FIXME:tessera
 		}
 	}
 
-	resp := tc.GetConsistencyProof(*params.FirstSize, params.LastSize)
+	resp := tc.GetConsistencyProof(*params.FirstSize, params.LastSize) // FIXME:tessera
 	if resp.Status != codes.OK {
 		return handleRekorAPIError(params, http.StatusInternalServerError, fmt.Errorf("grpc error: %w", resp.Err), trillianCommunicationError)
 	}
@@ -170,8 +170,8 @@ func GetLogProofHandler(params tlog.GetLogProofParams) middleware.Responder {
 }
 
 func inactiveShardLogInfo(ctx context.Context, tid int64) (*models.InactiveShardLogInfo, error) {
-	tc := trillianclient.NewTrillianClient(ctx, api.logClient, tid)
-	resp := tc.GetLatest(0)
+	tc := trillianclient.NewTrillianClient(ctx, api.logClient, tid) // FIXME:tessera
+	resp := tc.GetLatest(0)                                         // FIXME:tessera
 	if resp.Status != codes.OK {
 		return nil, fmt.Errorf("resp code is %d", resp.Status)
 	}

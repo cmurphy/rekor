@@ -81,11 +81,11 @@ func NewCheckpointPublisher(ctx context.Context,
 // before publishing the latest checkpoint. If this occurs due to a sporadic failure, this simply
 // means that a witness will not see a fresh checkpoint for an additional period.
 func (c *CheckpointPublisher) StartPublisher(ctx context.Context) {
-	tc := trillianclient.NewTrillianClient(context.Background(), c.logClient, c.treeID)
+	tc := trillianclient.NewTrillianClient(context.Background(), c.logClient, c.treeID) // FIXME:tessera
 	sTreeID := strconv.FormatInt(c.treeID, 10)
 
 	// publish on startup to ensure a checkpoint is available the first time Rekor starts up
-	c.publish(&tc, sTreeID)
+	c.publish(&tc, sTreeID) // FIXME:tessera
 
 	ticker := time.NewTicker(time.Duration(c.checkpointFreq) * time.Minute)
 	go func() {
@@ -94,16 +94,16 @@ func (c *CheckpointPublisher) StartPublisher(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				c.publish(&tc, sTreeID)
+				c.publish(&tc, sTreeID) // FIXME:tessera
 			}
 		}
 	}()
 }
 
 // publish publishes the latest checkpoint to Redis once
-func (c *CheckpointPublisher) publish(tc *trillianclient.TrillianClient, sTreeID string) {
+func (c *CheckpointPublisher) publish(tc *trillianclient.TrillianClient, sTreeID string) { // FIXME:tessera
 	// get latest checkpoint
-	resp := tc.GetLatest(0)
+	resp := tc.GetLatest(0) // FIXME:tessera
 	if resp.Status != codes.OK {
 		c.reqCounter.With(
 			map[string]string{

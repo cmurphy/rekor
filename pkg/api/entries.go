@@ -155,9 +155,9 @@ func createLogEntry(params entries.CreateLogEntryParams) (models.LogEntry, middl
 		return nil, handleRekorAPIError(params, http.StatusInternalServerError, err, failedToGenerateCanonicalEntry)
 	}
 
-	tc := trillianclient.NewTrillianClient(ctx, api.logClient, api.logID)
+	tc := trillianclient.NewTrillianClient(ctx, api.logClient, api.logID) // FIXME:tessera
 
-	resp := tc.AddLeaf(leaf)
+	resp := tc.AddLeaf(leaf) // FIXME:tessera
 	// this represents overall GRPC response state (not the results of insertion into the log)
 	if resp.Status != codes.OK {
 		return nil, handleRekorAPIError(params, http.StatusInternalServerError, fmt.Errorf("grpc error: %w", resp.Err), trillianUnexpectedResult)
@@ -337,10 +337,10 @@ func retrieveLogEntryByIndex(ctx context.Context, logIndex int) (models.LogEntry
 	log.ContextLogger(ctx).Infof("Retrieving log entry by index %d", logIndex)
 
 	tid, resolvedIndex := api.logRanges.ResolveVirtualIndex(logIndex)
-	tc := trillianclient.NewTrillianClient(ctx, api.logClient, tid)
+	tc := trillianclient.NewTrillianClient(ctx, api.logClient, tid) // FIXME:tessera
 	log.ContextLogger(ctx).Debugf("Retrieving resolved index %v from TreeID %v", resolvedIndex, tid)
 
-	resp := tc.GetLeafAndProofByIndex(resolvedIndex)
+	resp := tc.GetLeafAndProofByIndex(resolvedIndex) // FIXME:tessera
 	switch resp.Status {
 	case codes.OK:
 	case codes.NotFound, codes.OutOfRange, codes.InvalidArgument:
