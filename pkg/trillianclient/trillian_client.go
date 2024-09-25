@@ -189,28 +189,6 @@ func (t *TrillianClient) AddLeaf(byteValue []byte) *Response {
 	}
 }
 
-func (t *TrillianClient) GetLeafAndProofByHash(hash []byte) *Response {
-	// get inclusion proof for hash, extract index, then fetch leaf using index
-	proofResp := t.getProofByHash(hash)
-	if proofResp.Err != nil {
-		return &Response{
-			Status: status.Code(proofResp.Err),
-			Err:    proofResp.Err,
-		}
-	}
-
-	proofs := proofResp.getProofResult.Proof
-	if len(proofs) != 1 {
-		err := fmt.Errorf("expected 1 proof from getProofByHash for %v, found %v", hex.EncodeToString(hash), len(proofs))
-		return &Response{
-			Status: status.Code(err),
-			Err:    err,
-		}
-	}
-
-	return t.GetLeafAndProofByIndex(proofs[0].LeafIndex)
-}
-
 func (t *TrillianClient) GetLeafAndProofByIndex(index int64) *Response {
 	ctx, cancel := context.WithTimeout(t.context, 20*time.Second)
 	defer cancel()
