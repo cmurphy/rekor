@@ -72,7 +72,7 @@ func signEntry(ctx context.Context, signer signature.Signer, entry models.LogEnt
 }
 
 // logEntryFromLeaf creates a signed LogEntry struct from trillian structs
-func logEntryFromLeaf(ctx context.Context, signer signature.Signer, _ trillianclient.TrillianClient, leaf *trillian.LogLeaf,
+func logEntryFromLeaf(ctx context.Context, signer signature.Signer, leaf *trillian.LogLeaf,
 	signedLogRoot *trillian.SignedLogRoot, proof *trillian.Proof, tid int64, ranges sharding.LogRanges) (models.LogEntry, error) {
 
 	log.ContextLogger(ctx).Debugf("log entry from leaf %d", leaf.GetLeafIndex())
@@ -410,7 +410,7 @@ func retrieveLogEntryByIndex(ctx context.Context, logIndex int) (models.LogEntry
 		return models.LogEntry{}, ErrNotFound
 	}
 
-	return logEntryFromLeaf(ctx, api.signer, tc, leaf, result.SignedLogRoot, result.Proof, tid, api.logRanges)
+	return logEntryFromLeaf(ctx, api.signer, leaf, result.SignedLogRoot, result.Proof, tid, api.logRanges)
 }
 
 func storeAttestation(ctx context.Context, uuid string, attestation []byte) error {

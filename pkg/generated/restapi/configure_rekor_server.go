@@ -46,8 +46,6 @@ import (
 	"github.com/sigstore/rekor/pkg/generated/restapi/operations/tlog"
 	"github.com/sigstore/rekor/pkg/log"
 	"github.com/sigstore/rekor/pkg/util"
-
-	"golang.org/x/exp/slices"
 )
 
 //go:generate swagger generate server --target ../../generated --name RekorServer --spec ../../../openapi.yaml --principal interface{} --exclude-main
@@ -95,10 +93,6 @@ func configureAPI(api *operations.RekorServerAPI) http.Handler {
 	api.TlogGetLogProofHandler = tlog.GetLogProofHandlerFunc(pkgapi.GetLogProofNotImplementedHandler)
 
 	enabledAPIEndpoints := viper.GetStringSlice("enabled_api_endpoints")
-	if !slices.Contains(enabledAPIEndpoints, "searchIndex") && viper.GetBool("enable_retrieve_api") {
-		enabledAPIEndpoints = append(enabledAPIEndpoints, "searchIndex")
-	}
-
 	for _, enabledAPI := range enabledAPIEndpoints {
 		log.Logger.Infof("Enabling API endpoint: %s", enabledAPI)
 		switch enabledAPI {
