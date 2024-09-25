@@ -26,7 +26,6 @@ import (
 
 	"github.com/sigstore/rekor/pkg/generated/models"
 	"github.com/sigstore/rekor/pkg/generated/restapi/operations/entries"
-	"github.com/sigstore/rekor/pkg/generated/restapi/operations/index"
 	"github.com/sigstore/rekor/pkg/generated/restapi/operations/pubkey"
 	"github.com/sigstore/rekor/pkg/generated/restapi/operations/tlog"
 	"github.com/sigstore/rekor/pkg/log"
@@ -42,7 +41,6 @@ const (
 	malformedUUID                  = "UUID must be a 64-character hexadecimal string"
 	malformedPublicKey             = "public key provided could not be parsed"
 	failedToGenerateCanonicalKey   = "error generating canonicalized public key"
-	indexStorageUnexpectedResult   = "unexpected result from searching index"
 	lastSizeGreaterThanKnown       = "the tree size requested(%d) was greater than what is currently observable(%d)"
 	signingError                   = "error signing"
 	sthGenerateError               = "error generating signed tree head"
@@ -90,14 +88,6 @@ func handleRekorAPIError(params interface{}, code int, err error, message string
 		default:
 			return entries.NewGetLogEntryByIndexDefault(code).WithPayload(errorMsg(message, code))
 		}
-	case entries.GetLogEntryByUUIDParams:
-		logMsg(params.HTTPRequest)
-		switch code {
-		case http.StatusNotFound:
-			return entries.NewGetLogEntryByUUIDNotFound()
-		default:
-			return entries.NewGetLogEntryByUUIDDefault(code).WithPayload(errorMsg(message, code))
-		}
 	case entries.CreateLogEntryParams:
 		switch code {
 		// We treat "duplicate entry" as an error, but it's not really an error, so we don't need to log it as one.
@@ -122,16 +112,6 @@ func handleRekorAPIError(params interface{}, code int, err error, message string
 			logMsg(params.HTTPRequest)
 			return entries.NewCreateLogEntryDefault(code).WithPayload(errorMsg(message, code))
 		}
-	case entries.SearchLogQueryParams:
-		logMsg(params.HTTPRequest)
-		switch code {
-		case http.StatusBadRequest:
-			return entries.NewSearchLogQueryBadRequest().WithPayload(errorMsg(message, code))
-		case http.StatusUnprocessableEntity:
-			return entries.NewSearchLogQueryUnprocessableEntity().WithPayload(errorMsg(message, code))
-		default:
-			return entries.NewSearchLogQueryDefault(code).WithPayload(errorMsg(message, code))
-		}
 	case tlog.GetLogInfoParams:
 		logMsg(params.HTTPRequest)
 		return tlog.NewGetLogInfoDefault(code).WithPayload(errorMsg(message, code))
@@ -146,14 +126,6 @@ func handleRekorAPIError(params interface{}, code int, err error, message string
 	case pubkey.GetPublicKeyParams:
 		logMsg(params.HTTPRequest)
 		return pubkey.NewGetPublicKeyDefault(code).WithPayload(errorMsg(message, code))
-	case index.SearchIndexParams:
-		logMsg(params.HTTPRequest)
-		switch code {
-		case http.StatusBadRequest:
-			return index.NewSearchIndexBadRequest().WithPayload(errorMsg(message, code))
-		default:
-			return index.NewSearchIndexDefault(code).WithPayload(errorMsg(message, code))
-		}
 	default:
 		log.Logger.Errorf("unable to find method for type %T; error: %v", params, err)
 		return middleware.Error(http.StatusInternalServerError, http.StatusText(http.StatusInternalServerError))

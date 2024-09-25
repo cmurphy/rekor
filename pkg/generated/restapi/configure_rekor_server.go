@@ -42,7 +42,6 @@ import (
 	pkgapi "github.com/sigstore/rekor/pkg/api"
 	"github.com/sigstore/rekor/pkg/generated/restapi/operations"
 	"github.com/sigstore/rekor/pkg/generated/restapi/operations/entries"
-	"github.com/sigstore/rekor/pkg/generated/restapi/operations/index"
 	"github.com/sigstore/rekor/pkg/generated/restapi/operations/pubkey"
 	"github.com/sigstore/rekor/pkg/generated/restapi/operations/tlog"
 	"github.com/sigstore/rekor/pkg/log"
@@ -90,11 +89,8 @@ func configureAPI(api *operations.RekorServerAPI) http.Handler {
 	api.ApplicationXPemFileProducer = runtime.TextProducer()
 
 	// disable all endpoints to start
-	api.IndexSearchIndexHandler = index.SearchIndexHandlerFunc(pkgapi.SearchIndexNotImplementedHandler)
 	api.EntriesCreateLogEntryHandler = entries.CreateLogEntryHandlerFunc(pkgapi.CreateLogEntryNotImplementedHandler)
 	api.EntriesGetLogEntryByIndexHandler = entries.GetLogEntryByIndexHandlerFunc(pkgapi.GetLogEntryByIndexNotImplementedHandler)
-	api.EntriesGetLogEntryByUUIDHandler = entries.GetLogEntryByUUIDHandlerFunc(pkgapi.GetLogEntryByUUIDNotImplementedHandler)
-	api.EntriesSearchLogQueryHandler = entries.SearchLogQueryHandlerFunc(pkgapi.SearchLogQueryNotImplementedHandler)
 	api.PubkeyGetPublicKeyHandler = pubkey.GetPublicKeyHandlerFunc(pkgapi.GetPublicKeyNotImplementedHandler)
 	api.TlogGetLogProofHandler = tlog.GetLogProofHandlerFunc(pkgapi.GetLogProofNotImplementedHandler)
 
@@ -106,8 +102,6 @@ func configureAPI(api *operations.RekorServerAPI) http.Handler {
 	for _, enabledAPI := range enabledAPIEndpoints {
 		log.Logger.Infof("Enabling API endpoint: %s", enabledAPI)
 		switch enabledAPI {
-		case "searchIndex":
-			api.IndexSearchIndexHandler = index.SearchIndexHandlerFunc(pkgapi.SearchIndexHandler)
 		case "getLogInfo":
 			api.TlogGetLogInfoHandler = tlog.GetLogInfoHandlerFunc(pkgapi.GetLogInfoHandler)
 		case "getPublicKey":
@@ -118,10 +112,6 @@ func configureAPI(api *operations.RekorServerAPI) http.Handler {
 			api.EntriesCreateLogEntryHandler = entries.CreateLogEntryHandlerFunc(pkgapi.CreateLogEntryHandler)
 		case "getLogEntryByIndex":
 			api.EntriesGetLogEntryByIndexHandler = entries.GetLogEntryByIndexHandlerFunc(pkgapi.GetLogEntryByIndexHandler)
-		case "getLogEntryByUUID":
-			api.EntriesGetLogEntryByUUIDHandler = entries.GetLogEntryByUUIDHandlerFunc(pkgapi.GetLogEntryByUUIDHandler)
-		case "searchLogQuery":
-			api.EntriesSearchLogQueryHandler = entries.SearchLogQueryHandlerFunc(pkgapi.SearchLogQueryHandler)
 		default:
 			log.Logger.Panicf("Unknown API endpoint requested: %s", enabledAPI)
 		}
@@ -130,8 +120,6 @@ func configureAPI(api *operations.RekorServerAPI) http.Handler {
 	// all handlers need to be set before a call to api.AddMiddlewareFor
 	for _, enabledAPI := range enabledAPIEndpoints {
 		switch enabledAPI {
-		case "searchIndex":
-			recordMetricsForAPI(api, "POST", "/api/v1/index/retrieve") // add metrics
 		case "getLogInfo":
 			api.AddMiddlewareFor("GET", "/api/v1/log", middleware.NoCache) // not cacheable
 			recordMetricsForAPI(api, "GET", "/api/v1/log")                 // add metrics
@@ -146,11 +134,6 @@ func configureAPI(api *operations.RekorServerAPI) http.Handler {
 		case "getLogEntryByIndex":
 			api.AddMiddlewareFor("GET", "/api/v1/log/entries", middleware.NoCache) // not cacheable
 			recordMetricsForAPI(api, "GET", "/api/v1/log/entries")                 // add metrics
-		case "getLogEntryByUUID":
-			api.AddMiddlewareFor("GET", "/api/v1/log/entries/{entryUUID}", middleware.NoCache) // not cacheable
-			recordMetricsForAPI(api, "GET", "/api/v1/log/entries/{entryUUID}")                 // add metrics
-		case "searchLogQuery":
-			recordMetricsForAPI(api, "POST", "/api/v1/log/entries/retrieve") // add metrics
 		}
 	}
 	api.RegisterFormat("signedCheckpoint", &util.SignedNote{}, util.SignedCheckpointValidator)

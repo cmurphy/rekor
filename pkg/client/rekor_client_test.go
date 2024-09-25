@@ -22,7 +22,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sigstore/rekor/pkg/generated/client/index"
 	"go.uber.org/goleak"
 )
 
@@ -128,6 +127,5 @@ func TestRekorLeakedGoroutine_SearchByHash(t *testing.T) {
 		// this is done after leak detection so that we can test
 		testServer.Close()
 	}()
-	rekor, _ := GetRekorClient(testServer.URL, WithInsecureTLS(true))
-	rekor.Index.SearchIndex(index.NewSearchIndexParams())
+	_, _ = GetRekorClient(testServer.URL, WithInsecureTLS(true))
 }

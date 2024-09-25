@@ -29,12 +29,10 @@ import (
 	"github.com/google/trillian"
 	"github.com/redis/go-redis/v9"
 	"github.com/spf13/viper"
-	"golang.org/x/exp/slices"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/sigstore/rekor/pkg/indexstorage"
 	"github.com/sigstore/rekor/pkg/log"
 	"github.com/sigstore/rekor/pkg/pubsub"
 	"github.com/sigstore/rekor/pkg/sharding"
@@ -181,7 +179,6 @@ func NewAPI(treeID uint) (*API, error) {
 var (
 	api                      *API
 	attestationStorageClient storage.AttestationStorage
-	indexStorageClient       indexstorage.IndexStorage
 	redisClient              *redis.Client
 )
 
@@ -191,13 +188,6 @@ func ConfigureAPI(treeID uint) {
 	api, err = NewAPI(treeID)
 	if err != nil {
 		log.Logger.Panic(err)
-	}
-	if viper.GetBool("enable_retrieve_api") || viper.GetBool("enable_stable_checkpoint") ||
-		slices.Contains(viper.GetStringSlice("enabled_api_endpoints"), "searchIndex") {
-		indexStorageClient, err = indexstorage.NewIndexStorage(viper.GetString("search_index.storage_provider"))
-		if err != nil {
-			log.Logger.Panic(err)
-		}
 	}
 
 	if viper.GetBool("enable_attestation_storage") {
@@ -244,12 +234,6 @@ func StopAPI() {
 	if api.newEntryPublisher != nil {
 		if err := api.newEntryPublisher.Close(); err != nil {
 			log.Logger.Errorf("shutting down newEntryPublisher: %v", err)
-		}
-	}
-
-	if indexStorageClient != nil {
-		if err := indexStorageClient.Shutdown(); err != nil {
-			log.Logger.Errorf("shutting down indexStorageClient: %v", err)
 		}
 	}
 }

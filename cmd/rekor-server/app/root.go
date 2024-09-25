@@ -37,14 +37,11 @@ var (
 	enablePprof bool
 	// these map to the operationId as defined in openapi.yaml file
 	operationIDs = []string{
-		"searchIndex",
 		"getLogInfo",
 		"getPublicKey",
 		"getLogProof",
 		"createLogEntry",
 		"getLogEntryByIndex",
-		"getLogEntryByUUID",
-		"searchLogQuery",
 	}
 )
 

@@ -32,7 +32,6 @@ import (
 	"github.com/sigstore/rekor/pkg/generated/models"
 	"github.com/sigstore/rekor/pkg/log"
 	"github.com/sigstore/rekor/pkg/sharding"
-	"github.com/sigstore/rekor/pkg/types"
 	"github.com/sigstore/rekor/pkg/verify"
 )
 
@@ -98,50 +97,22 @@ var verifyCmd = &cobra.Command{
 			return nil, err
 		}
 
-		searchParams := entries.NewSearchLogQueryParams()
-		searchParams.SetTimeout(viper.GetDuration("timeout"))
-		searchLogQuery := models.SearchLogQuery{}
+		getParams := entries.NewGetLogEntryByIndexParams()
+		getParams.SetTimeout(viper.GetDuration("timeout"))
 
-		uuid := viper.GetString("uuid")
 		logIndex := viper.GetString("log-index")
-
-		if uuid != "" {
-			searchLogQuery.EntryUUIDs = append(searchLogQuery.EntryUUIDs, uuid)
-		} else if logIndex != "" {
-			logIndexInt, err := strconv.ParseInt(logIndex, 10, 0)
-			if err != nil {
-				return nil, fmt.Errorf("error parsing --log-index: %w", err)
-			}
-			searchLogQuery.LogIndexes = []*int64{&logIndexInt}
-		} else {
-			typeStr, versionStr, err := ParseTypeFlag(viper.GetString("type"))
-			if err != nil {
-				return nil, err
-			}
-
-			props := CreatePropsFromPflags()
-
-			entry, err := types.NewProposedEntry(context.Background(), typeStr, versionStr, *props)
-			if err != nil {
-				return nil, fmt.Errorf("error: %w", err)
-			}
-
-			entries := []models.ProposedEntry{entry}
-			searchLogQuery.SetEntries(entries)
+		logIndexInt, err := strconv.ParseInt(logIndex, 10, 0)
+		if err != nil {
+			return nil, fmt.Errorf("error parsing --log-index: %w", err)
 		}
-		searchParams.SetEntry(&searchLogQuery)
+		getParams.SetLogIndex(logIndexInt)
 
-		resp, err := rekorClient.Entries.SearchLogQuery(searchParams)
+		resp, err := rekorClient.Entries.GetLogEntryByIndex(getParams)
 		if err != nil {
 			return nil, err
 		}
 
-		if len(resp.Payload) == 0 {
-			return nil, fmt.Errorf("entry in log cannot be located")
-		} else if len(resp.Payload) > 1 {
-			return nil, fmt.Errorf("multiple entries returned; this should not happen")
-		}
-		logEntry := resp.Payload[0]
+		logEntry := resp.Payload
 
 		var o *verifyCmdOutput
 		var entry models.LogEntryAnon
@@ -157,12 +128,6 @@ var verifyCmd = &cobra.Command{
 				o.Checkpoint = *v.Verification.InclusionProof.Checkpoint
 			}
 			entry = v
-		}
-
-		if viper.IsSet("uuid") {
-			if err := compareEntryUUIDs(viper.GetString("uuid"), o.EntryUUID); err != nil {
-				return nil, err
-			}
 		}
 
 		// Get Rekor Pub

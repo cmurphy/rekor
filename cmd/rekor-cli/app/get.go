@@ -34,7 +34,6 @@ import (
 	"github.com/sigstore/rekor/pkg/generated/client/entries"
 	"github.com/sigstore/rekor/pkg/generated/models"
 	"github.com/sigstore/rekor/pkg/log"
-	"github.com/sigstore/rekor/pkg/sharding"
 	"github.com/sigstore/rekor/pkg/tle"
 	"github.com/sigstore/rekor/pkg/types"
 	"github.com/sigstore/rekor/pkg/verify"
@@ -130,77 +129,8 @@ var getCmd = &cobra.Command{
 			}
 		}
 
-		// Note: this UUID may be an EntryID
-		if uuid != "" {
-			params := entries.NewGetLogEntryByUUIDParams()
-			params.SetTimeout(viper.GetDuration("timeout"))
-			params.EntryUUID = uuid
-
-			resp, err := rekorClient.Entries.GetLogEntryByUUID(params)
-			if err != nil {
-				return nil, err
-			}
-
-			var e models.LogEntryAnon
-			for k, entry := range resp.Payload {
-				if err := compareEntryUUIDs(params.EntryUUID, k); err != nil {
-					return nil, err
-				}
-
-				// verify log entry
-				e = entry
-				if err := verify.VerifyLogEntry(ctx, &e, verifier); err != nil {
-					return nil, fmt.Errorf("unable to verify entry was added to log: %w", err)
-				}
-
-				return parseEntry(k, entry)
-			}
-		}
-
 		return nil, errors.New("entry not found")
 	}),
-}
-
-// TODO: Move this to the verify pkg, but only after sharding cleans
-// up it's Trillian client dependency.
-func compareEntryUUIDs(requestEntryUUID string, responseEntryUUID string) error {
-	requestUUID, err := sharding.GetUUIDFromIDString(requestEntryUUID)
-	if err != nil {
-		return err
-	}
-	responseUUID, err := sharding.GetUUIDFromIDString(responseEntryUUID)
-	if err != nil {
-		return err
-	}
-	// Compare UUIDs.
-	if requestUUID != responseUUID {
-		return fmt.Errorf("unexpected entry returned from rekor server: expected %s, got %s", requestEntryUUID, responseEntryUUID)
-	}
-	// If the request contains a Tree ID, then compare that.
-	requestTreeID, err := sharding.GetTreeIDFromIDString(requestEntryUUID)
-	if err != nil {
-		if errors.Is(err, sharding.ErrPlainUUID) {
-			// The request did not contain a Tree ID, we're good.
-			return nil
-		}
-		// The request had a bad Tree ID, error out.
-		return err
-	}
-	// We requested an entry from a given Tree ID.
-	responseTreeID, err := sharding.GetTreeIDFromIDString(responseEntryUUID)
-	if err != nil {
-		if errors.Is(err, sharding.ErrPlainUUID) {
-			// The response does not contain a Tree ID, we can only do so much.
-			// Old rekor instances may not have returned one.
-			return nil
-		}
-		return err
-	}
-	// We have Tree IDs. Compare.
-	if requestTreeID != responseTreeID {
-		return fmt.Errorf("unexpected entry returned from rekor server: expected %s, got %s", requestEntryUUID, responseEntryUUID)
-	}
-	return nil
 }
 
 func parseEntry(uuid string, e models.LogEntryAnon) (interface{}, error) {
