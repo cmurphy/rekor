@@ -25,10 +25,13 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/google/trillian"
 	"github.com/redis/go-redis/v9"
 	"github.com/spf13/viper"
+	tessera "github.com/transparency-dev/trillian-tessera"
+	"github.com/transparency-dev/trillian-tessera/storage/mysql"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -37,7 +40,6 @@ import (
 	"github.com/sigstore/rekor/pkg/pubsub"
 	"github.com/sigstore/rekor/pkg/sharding"
 	"github.com/sigstore/rekor/pkg/signer"
-	"github.com/sigstore/rekor/pkg/trillianclient"
 	"github.com/sigstore/rekor/pkg/witness"
 	"github.com/sigstore/sigstore/pkg/cryptoutils"
 	"github.com/sigstore/sigstore/pkg/signature"
@@ -45,6 +47,8 @@ import (
 
 	_ "github.com/sigstore/rekor/pkg/pubsub/gcp" // Load GCP pubsub implementation
 )
+
+var tesseraStorage *mysql.Storage
 
 func dial(rpcServer string) (*grpc.ClientConn, error) {
 	// Extract the hostname without the port
@@ -111,7 +115,6 @@ func NewAPI(treeID uint) (*API, error) {
 	if err != nil {
 		return nil, fmt.Errorf("dial: %w", err)
 	}
-	logAdminClient := trillian.NewTrillianAdminClient(tConn)
 	logClient := trillian.NewTrillianLogClient(tConn)
 
 	shardingConfig := viper.GetString("trillian_log_server.sharding_config")
@@ -123,11 +126,23 @@ func NewAPI(treeID uint) (*API, error) {
 	tid := int64(treeID)
 	if tid == 0 {
 		log.Logger.Info("No tree ID specified, attempting to create a new tree")
-		t, err := trillianclient.CreateAndInitTree(ctx, logAdminClient, logClient) // FIXME:tessera
+		db, err := createDatabase(ctx, "root:root@tcp(127.0.0.1:3307)/test_tessera", 3*time.Minute, 64, 64)
 		if err != nil {
-			return nil, fmt.Errorf("create and init tree: %w", err)
+			return nil, err
 		}
-		tid = t.TreeId
+		noteSigner, err := createSigner("/home/colleenmurphy/dev/trillian-tessera/cmd/conformance/mysql/docker/testdata/key")
+		if err != nil {
+			return nil, err
+		}
+		_, noteVerifier, err := createVerifier("/home/colleenmurphy/dev/trillian-tessera/cmd/conformance/mysql/docker/testdata/key.pub")
+		if err != nil {
+			return nil, err
+		}
+		tesseraStorage, err = mysql.New(ctx, db, tessera.WithCheckpointSignerVerifier(noteSigner, noteVerifier))
+		if err != nil {
+			return nil, err
+		}
+		tid = 42
 	}
 	log.Logger.Infof("Starting Rekor server with active tree %v", tid)
 	ranges.SetActive(tid)

@@ -26,6 +26,7 @@ import (
 	"github.com/go-openapi/swag"
 	"github.com/google/trillian/types"
 	"github.com/spf13/viper"
+	logFormat "github.com/transparency-dev/formats/log"
 	"google.golang.org/grpc/codes"
 
 	"github.com/sigstore/rekor/pkg/generated/models"
@@ -37,80 +38,33 @@ import (
 
 // GetLogInfoHandler returns the current size of the tree and the STH
 func GetLogInfoHandler(params tlog.GetLogInfoParams) middleware.Responder {
-	tc := trillianclient.NewTrillianClient(params.HTTPRequest.Context(), api.logClient, api.logID) // FIXME:tessera
-
-	// for each inactive shard, get the loginfo
-	var inactiveShards []*models.InactiveShardLogInfo
-	for _, shard := range api.logRanges.GetInactive() {
-		if shard.TreeID == api.logRanges.ActiveTreeID() {
-			break
-		}
-		// Get details for this inactive shard
-		is, err := inactiveShardLogInfo(params.HTTPRequest.Context(), shard.TreeID)
-		if err != nil {
-			return handleRekorAPIError(params, http.StatusInternalServerError, fmt.Errorf("inactive shard error: %w", err), unexpectedInactiveShardError)
-		}
-		inactiveShards = append(inactiveShards, is)
+	checkpointBody, err := tesseraStorage.ReadCheckpoint(context.TODO())
+	if err != nil {
+		return handleRekorAPIError(params, http.StatusInternalServerError, fmt.Errorf("checkpoint error: %w", err), "")
 	}
-
-	if swag.BoolValue(params.Stable) && redisClient != nil {
-		// key is treeID/latest
-		key := fmt.Sprintf("%d/latest", api.logRanges.ActiveTreeID())
-		redisResult, err := redisClient.Get(params.HTTPRequest.Context(), key).Result()
-		if err != nil {
-			return handleRekorAPIError(params, http.StatusInternalServerError,
-				fmt.Errorf("error getting checkpoint from redis: %w", err), "error getting checkpoint from redis")
-		}
-		// should not occur, a checkpoint should always be present
-		if redisResult == "" {
-			return handleRekorAPIError(params, http.StatusInternalServerError,
-				fmt.Errorf("no checkpoint found in redis: %w", err), "no checkpoint found in redis")
-		}
-		decoded, err := hex.DecodeString(redisResult)
-		if err != nil {
-			return handleRekorAPIError(params, http.StatusInternalServerError,
-				fmt.Errorf("error decoding checkpoint from redis: %w", err), "error decoding checkpoint from redis")
-		}
-		checkpoint := util.SignedCheckpoint{}
-		if err := checkpoint.UnmarshalText(decoded); err != nil {
-			return handleRekorAPIError(params, http.StatusInternalServerError, fmt.Errorf("invalid checkpoint: %w", err), "invalid checkpoint")
-		}
-		logInfo := models.LogInfo{
-			RootHash:       stringPointer(hex.EncodeToString(checkpoint.Hash)),
-			TreeSize:       swag.Int64(int64(checkpoint.Size)),
-			SignedTreeHead: stringPointer(string(decoded)),
-			TreeID:         stringPointer(fmt.Sprintf("%d", api.logID)),
-			InactiveShards: inactiveShards,
-		}
-		return tlog.NewGetLogInfoOK().WithPayload(&logInfo)
+	if checkpointBody == nil {
+		return handleRekorAPIError(params, http.StatusNotFound, err, "")
 	}
-
-	resp := tc.GetLatest(0) // FIXME:tessera
-	if resp.Status != codes.OK {
-		return handleRekorAPIError(params, http.StatusInternalServerError, fmt.Errorf("grpc error: %w", resp.Err), trillianCommunicationError)
+	var checkpoint logFormat.Checkpoint
+	_, err = checkpoint.Unmarshal(checkpointBody)
+	if err != nil {
+		return handleRekorAPIError(params, http.StatusInternalServerError, err, "")
 	}
-	result := resp.GetLatestResult
-
-	root := &types.LogRootV1{}
-	if err := root.UnmarshalBinary(result.SignedLogRoot.LogRoot); err != nil {
-		return handleRekorAPIError(params, http.StatusInternalServerError, err, trillianUnexpectedResult)
-	}
-
-	hashString := hex.EncodeToString(root.RootHash)
-	treeSize := int64(root.TreeSize)
 
 	scBytes, err := util.CreateAndSignCheckpoint(params.HTTPRequest.Context(),
-		viper.GetString("rekor_server.hostname"), api.logRanges.ActiveTreeID(), root.TreeSize, root.RootHash, api.signer)
+		viper.GetString("rekor_server.hostname"), api.logRanges.ActiveTreeID(), checkpoint.Size, checkpoint.Hash, api.signer)
 	if err != nil {
 		return handleRekorAPIError(params, http.StatusInternalServerError, err, sthGenerateError)
 	}
 
+	treeSize := int64(checkpoint.Size)
+	hexHash := hex.EncodeToString(checkpoint.Hash)
 	logInfo := models.LogInfo{
-		RootHash:       &hashString,
+		RootHash:       stringPointer(hexHash),
 		TreeSize:       &treeSize,
 		SignedTreeHead: stringPointer(string(scBytes)),
 		TreeID:         stringPointer(fmt.Sprintf("%d", api.logID)),
-		InactiveShards: inactiveShards,
+		//InactiveShards: inactiveShards,
 	}
 
 	return tlog.NewGetLogInfoOK().WithPayload(&logInfo)
