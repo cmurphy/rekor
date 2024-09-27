@@ -23,6 +23,8 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
+	"time"
 
 	"github.com/cyberphone/json-canonicalization/go/src/webpki.org/jsoncanonicalizer"
 	"github.com/go-openapi/runtime/middleware"
@@ -31,8 +33,10 @@ import (
 	"github.com/google/trillian"
 	ttypes "github.com/google/trillian/types"
 	"github.com/spf13/viper"
-	"github.com/transparency-dev/merkle/rfc6962"
-	"google.golang.org/genproto/googleapis/rpc/code"
+	logFormat "github.com/transparency-dev/formats/log"
+	tessera "github.com/transparency-dev/trillian-tessera"
+	"github.com/transparency-dev/trillian-tessera/api/layout"
+	"github.com/transparency-dev/trillian-tessera/client"
 	"google.golang.org/grpc/codes"
 
 	"github.com/sigstore/rekor/pkg/events"
@@ -155,82 +159,68 @@ func createLogEntry(params entries.CreateLogEntryParams) (models.LogEntry, middl
 		return nil, handleRekorAPIError(params, http.StatusInternalServerError, err, failedToGenerateCanonicalEntry)
 	}
 
-	tc := trillianclient.NewTrillianClient(ctx, api.logClient, api.logID) // FIXME:tessera
-
-	resp := tc.AddLeaf(leaf) // FIXME:tessera
-	// this represents overall GRPC response state (not the results of insertion into the log)
-	if resp.Status != codes.OK {
-		return nil, handleRekorAPIError(params, http.StatusInternalServerError, fmt.Errorf("grpc error: %w", resp.Err), trillianUnexpectedResult)
-	}
-
-	// this represents the results of inserting the proposed leaf into the log; status is nil in success path
-	insertionStatus := resp.GetAddResult.QueuedLeaf.Status
-	if insertionStatus != nil {
-		switch insertionStatus.Code {
-		case int32(code.Code_OK):
-		case int32(code.Code_ALREADY_EXISTS), int32(code.Code_FAILED_PRECONDITION):
-			existingUUID := hex.EncodeToString(rfc6962.DefaultHasher.HashLeaf(leaf))
-			activeTree := fmt.Sprintf("%x", api.logID)
-			entryIDstruct, err := sharding.CreateEntryIDFromParts(activeTree, existingUUID)
-			if err != nil {
-				err := fmt.Errorf("error creating EntryID from active treeID %v and uuid %v: %w", activeTree, existingUUID, err)
-				return nil, handleRekorAPIError(params, http.StatusInternalServerError, err, fmt.Sprintf(validationError, err))
-			}
-			existingEntryID := entryIDstruct.ReturnEntryIDString()
-			err = fmt.Errorf("grpc error: %v", insertionStatus.String())
-			return nil, handleRekorAPIError(params, http.StatusConflict, err, fmt.Sprintf(entryAlreadyExists, existingEntryID), "entryURL", getEntryURL(*params.HTTPRequest.URL, existingEntryID))
-		default:
-			err := fmt.Errorf("grpc error: %v", insertionStatus.String())
-			return nil, handleRekorAPIError(params, http.StatusInternalServerError, err, trillianUnexpectedResult)
-		}
+	tesseraEntry := tessera.NewEntry(leaf)
+	idx, err := tesseraStorage.Add(params.HTTPRequest.Context(), tesseraEntry)()
+	if err != nil {
+		return nil, handleRekorAPIError(params, http.StatusInternalServerError, err, trillianUnexpectedResult)
 	}
 
 	// We made it this far, that means the entry was successfully added.
 	metricNewEntries.Inc()
 
-	queuedLeaf := resp.GetAddResult.QueuedLeaf.Leaf
-
-	uuid := hex.EncodeToString(queuedLeaf.GetMerkleLeafHash())
-	activeTree := fmt.Sprintf("%x", api.logID)
-	entryIDstruct, err := sharding.CreateEntryIDFromParts(activeTree, uuid)
-	if err != nil {
-		err := fmt.Errorf("error creating EntryID from active treeID %v and uuid %v: %w", activeTree, uuid, err)
-		return nil, handleRekorAPIError(params, http.StatusInternalServerError, err, fmt.Sprintf(validationError, err))
-	}
-	entryID := entryIDstruct.ReturnEntryIDString()
-
-	// The log index should be the virtual log index across all shards
-	virtualIndex := sharding.VirtualLogIndex(queuedLeaf.LeafIndex, api.logRanges.ActiveTreeID(), api.logRanges)
 	logEntryAnon := models.LogEntryAnon{
 		LogID:          swag.String(api.pubkeyHash),
-		LogIndex:       swag.Int64(virtualIndex),
-		Body:           queuedLeaf.GetLeafValue(),
-		IntegratedTime: swag.Int64(queuedLeaf.IntegrateTimestamp.AsTime().Unix()),
+		LogIndex:       swag.Int64(int64(idx)),
+		Body:           leaf,
+		IntegratedTime: swag.Int64(time.Now().Unix()), // FIXME: either don't require integrated time or find an authentic source for it
 	}
 
 	signature, err := signEntry(ctx, api.signer, logEntryAnon)
 	if err != nil {
-		return nil, handleRekorAPIError(params, http.StatusInternalServerError, fmt.Errorf("signing entry error: %w", err), signingError)
+		return nil, handleRekorAPIError(params, http.StatusInternalServerError, err, sthGenerateError)
 	}
-
-	root := &ttypes.LogRootV1{}
-	if err := root.UnmarshalBinary(resp.GetLeafAndProofResult.SignedLogRoot.LogRoot); err != nil {
-		return nil, handleRekorAPIError(params, http.StatusInternalServerError, fmt.Errorf("error unmarshalling log root: %w", err), sthGenerateError)
+	checkpointBody, err := tesseraStorage.ReadCheckpoint(context.TODO())
+	if err != nil {
+		return nil, handleRekorAPIError(params, http.StatusInternalServerError, err, err.Error())
 	}
-	hashes := []string{}
-	for _, hash := range resp.GetLeafAndProofResult.Proof.Hashes {
-		hashes = append(hashes, hex.EncodeToString(hash))
+	if checkpointBody == nil {
+		return nil, handleRekorAPIError(params, http.StatusNotFound, err, "")
 	}
-
-	scBytes, err := util.CreateAndSignCheckpoint(ctx, viper.GetString("rekor_server.hostname"), api.logID, root.TreeSize, root.RootHash, api.signer)
+	checkpoint := logFormat.Checkpoint{}
+	_, err = checkpoint.Unmarshal(checkpointBody)
+	if err != nil {
+		return nil, handleRekorAPIError(params, http.StatusInternalServerError, err, err.Error())
+	}
+	scBytes, err := util.CreateAndSignCheckpoint(ctx, viper.GetString("rekor_server.hostname"), api.logID, checkpoint.Size, checkpoint.Hash, api.signer)
 	if err != nil {
 		return nil, handleRekorAPIError(params, http.StatusInternalServerError, err, sthGenerateError)
 	}
 
+	tileOnlyFetcher := func(ctx context.Context, path string) ([]byte, error) {
+		pathParts := strings.SplitN(path, "/", 3)
+		level, index, width, err := layout.ParseTileLevelIndexWidth(pathParts[1], pathParts[2])
+		if err != nil {
+			return nil, err
+		}
+		return tesseraStorage.ReadTile(ctx, level, index, width)
+	}
+	proofBuilder, err := client.NewProofBuilder(ctx, checkpoint, tileOnlyFetcher)
+	if err != nil {
+		return nil, handleRekorAPIError(params, http.StatusInternalServerError, err, sthGenerateError)
+	}
+	proof, err := proofBuilder.InclusionProof(ctx, idx)
+	if err != nil {
+		return nil, handleRekorAPIError(params, http.StatusInternalServerError, err, sthGenerateError)
+	}
+	hashes := make([]string, len(proof))
+	for i, h := range proof {
+		hashes[i] = hex.EncodeToString(h)
+	}
+
 	inclusionProof := models.InclusionProof{
-		TreeSize:   swag.Int64(int64(root.TreeSize)),
-		RootHash:   swag.String(hex.EncodeToString(root.RootHash)),
-		LogIndex:   swag.Int64(queuedLeaf.LeafIndex),
+		TreeSize:   swag.Int64(int64(checkpoint.Size)),
+		RootHash:   swag.String(hex.EncodeToString(checkpoint.Hash)),
+		LogIndex:   swag.Int64(int64(idx)),
 		Hashes:     hashes,
 		Checkpoint: swag.String(string(scBytes)),
 	}
@@ -240,8 +230,9 @@ func createLogEntry(params entries.CreateLogEntryParams) (models.LogEntry, middl
 		SignedEntryTimestamp: strfmt.Base64(signature),
 	}
 
+	uuid := hex.EncodeToString(tesseraEntry.LeafHash())
 	logEntry := models.LogEntry{
-		entryID: logEntryAnon,
+		uuid: logEntryAnon,
 	}
 
 	if api.newEntryPublisher != nil {
@@ -250,7 +241,7 @@ func createLogEntry(params entries.CreateLogEntryParams) (models.LogEntry, middl
 			verifiers, err := entry.Verifiers()
 			if err != nil {
 				incPublishEvent(newentry.Name, "", false)
-				log.ContextLogger(ctx).Errorf("Could not get verifiers for log entry %s: %v", entryID, err)
+				log.ContextLogger(ctx).Errorf("Could not get verifiers for log entry %s: %v", uuid, err)
 				return
 			}
 			var subjects []string
@@ -264,7 +255,7 @@ func createLogEntry(params entries.CreateLogEntryParams) (models.LogEntry, middl
 				log.ContextLogger(ctx).Error(err)
 				return
 			}
-			event, err := newentry.New(entryID, pbEntry, subjects)
+			event, err := newentry.New(uuid, pbEntry, subjects)
 			if err != nil {
 				incPublishEvent(newentry.Name, "", false)
 				log.ContextLogger(ctx).Error(err)
