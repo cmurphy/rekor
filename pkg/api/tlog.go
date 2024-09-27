@@ -20,18 +20,18 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/http"
-	"strconv"
+	"strings"
 
 	"github.com/go-openapi/runtime/middleware"
-	"github.com/go-openapi/swag"
 	"github.com/google/trillian/types"
 	"github.com/spf13/viper"
 	logFormat "github.com/transparency-dev/formats/log"
+	"github.com/transparency-dev/trillian-tessera/api/layout"
+	"github.com/transparency-dev/trillian-tessera/client"
 	"google.golang.org/grpc/codes"
 
 	"github.com/sigstore/rekor/pkg/generated/models"
 	"github.com/sigstore/rekor/pkg/generated/restapi/operations/tlog"
-	"github.com/sigstore/rekor/pkg/log"
 	"github.com/sigstore/rekor/pkg/trillianclient"
 	"github.com/sigstore/rekor/pkg/util"
 )
@@ -79,39 +79,47 @@ func GetLogProofHandler(params tlog.GetLogProofParams) middleware.Responder {
 	if *params.FirstSize > params.LastSize {
 		return handleRekorAPIError(params, http.StatusBadRequest, nil, fmt.Sprintf(firstSizeLessThanLastSize, *params.FirstSize, params.LastSize))
 	}
-	tc := trillianclient.NewTrillianClient(params.HTTPRequest.Context(), api.logClient, api.logID) // FIXME:tessera
-	if treeID := swag.StringValue(params.TreeID); treeID != "" {
-		id, err := strconv.Atoi(treeID)
+	checkpointBody, err := tesseraStorage.ReadCheckpoint(context.TODO())
+	if err != nil {
+		return handleRekorAPIError(params, http.StatusInternalServerError, err, err.Error())
+	}
+	if checkpointBody == nil {
+		return handleRekorAPIError(params, http.StatusNotFound, err, "")
+	}
+	checkpoint := logFormat.Checkpoint{}
+	_, err = checkpoint.Unmarshal(checkpointBody)
+	if err != nil {
+		return handleRekorAPIError(params, http.StatusInternalServerError, err, err.Error())
+	}
+	tileOnlyFetcher := func(ctx context.Context, path string) ([]byte, error) {
+		pathParts := strings.SplitN(path, "/", 3)
+		level, index, width, err := layout.ParseTileLevelIndexWidth(pathParts[1], pathParts[2])
 		if err != nil {
-			log.Logger.Infof("Unable to convert %s to string, skipping initializing client with Tree ID: %v", treeID, err)
-		} else {
-			tc = trillianclient.NewTrillianClient(params.HTTPRequest.Context(), api.logClient, int64(id)) // FIXME:tessera
+			return nil, err
 		}
+		return tesseraStorage.ReadTile(ctx, level, index, width)
+	}
+	proofBuilder, err := client.NewProofBuilder(context.TODO(), checkpoint, tileOnlyFetcher)
+	if err != nil {
+		return handleRekorAPIError(params, http.StatusInternalServerError, err, sthGenerateError)
+	}
+	proofHashesBytes, err := proofBuilder.ConsistencyProof(context.TODO(), uint64(*params.FirstSize), uint64(params.LastSize))
+	if err != nil {
+		return handleRekorAPIError(params, http.StatusInternalServerError, err, sthGenerateError)
 	}
 
-	resp := tc.GetConsistencyProof(*params.FirstSize, params.LastSize) // FIXME:tessera
-	if resp.Status != codes.OK {
-		return handleRekorAPIError(params, http.StatusInternalServerError, fmt.Errorf("grpc error: %w", resp.Err), trillianCommunicationError)
-	}
-	result := resp.GetConsistencyProofResult
-
-	var root types.LogRootV1
-	if err := root.UnmarshalBinary(result.SignedLogRoot.LogRoot); err != nil {
-		return handleRekorAPIError(params, http.StatusInternalServerError, err, trillianUnexpectedResult)
-	}
-
-	hashString := hex.EncodeToString(root.RootHash)
+	hashString := hex.EncodeToString(checkpoint.Hash)
 	proofHashes := []string{}
 
-	if proof := result.GetProof(); proof != nil {
-		for _, hash := range proof.Hashes {
+	if len(proofHashesBytes) > 0 {
+		for _, hash := range proofHashesBytes {
 			proofHashes = append(proofHashes, hex.EncodeToString(hash))
 		}
 	} else {
 		// The proof field may be empty if the requested tree_size was larger than that available at the server
 		// (e.g. because there is skew between server instances, and an earlier client request was processed by
 		// a more up-to-date instance). root.TreeSize is the maximum size currently observed
-		err := fmt.Errorf(lastSizeGreaterThanKnown, params.LastSize, root.TreeSize)
+		err := fmt.Errorf(lastSizeGreaterThanKnown, params.LastSize, checkpoint.Size)
 		return handleRekorAPIError(params, http.StatusBadRequest, err, err.Error())
 	}
 
