@@ -30,14 +30,12 @@ import (
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/go-openapi/strfmt"
 	"github.com/go-openapi/swag"
-	"github.com/google/trillian"
-	ttypes "github.com/google/trillian/types"
 	"github.com/spf13/viper"
 	logFormat "github.com/transparency-dev/formats/log"
 	tessera "github.com/transparency-dev/trillian-tessera"
+	tesseraapi "github.com/transparency-dev/trillian-tessera/api"
 	"github.com/transparency-dev/trillian-tessera/api/layout"
 	"github.com/transparency-dev/trillian-tessera/client"
-	"google.golang.org/grpc/codes"
 
 	"github.com/sigstore/rekor/pkg/events"
 	"github.com/sigstore/rekor/pkg/events/newentry"
@@ -45,9 +43,7 @@ import (
 	"github.com/sigstore/rekor/pkg/generated/restapi/operations/entries"
 	"github.com/sigstore/rekor/pkg/log"
 	"github.com/sigstore/rekor/pkg/pubsub"
-	"github.com/sigstore/rekor/pkg/sharding"
 	"github.com/sigstore/rekor/pkg/tle"
-	"github.com/sigstore/rekor/pkg/trillianclient"
 	"github.com/sigstore/rekor/pkg/types"
 	"github.com/sigstore/rekor/pkg/util"
 	"github.com/sigstore/sigstore/pkg/signature"
@@ -72,63 +68,6 @@ func signEntry(ctx context.Context, signer signature.Signer, entry models.LogEnt
 		return nil, fmt.Errorf("signing error: %w", err)
 	}
 	return signature, nil
-}
-
-// logEntryFromLeaf creates a signed LogEntry struct from trillian structs
-func logEntryFromLeaf(ctx context.Context, signer signature.Signer, leaf *trillian.LogLeaf,
-	signedLogRoot *trillian.SignedLogRoot, proof *trillian.Proof, tid int64, ranges sharding.LogRanges) (models.LogEntry, error) {
-
-	log.ContextLogger(ctx).Debugf("log entry from leaf %d", leaf.GetLeafIndex())
-	root := &ttypes.LogRootV1{}
-	if err := root.UnmarshalBinary(signedLogRoot.LogRoot); err != nil {
-		return nil, err
-	}
-	hashes := []string{}
-	for _, hash := range proof.Hashes {
-		hashes = append(hashes, hex.EncodeToString(hash))
-	}
-
-	virtualIndex := sharding.VirtualLogIndex(leaf.GetLeafIndex(), tid, ranges)
-	logEntryAnon := models.LogEntryAnon{
-		LogID:          swag.String(api.pubkeyHash),
-		LogIndex:       &virtualIndex,
-		Body:           leaf.LeafValue,
-		IntegratedTime: swag.Int64(leaf.IntegrateTimestamp.AsTime().Unix()),
-	}
-
-	signature, err := signEntry(ctx, signer, logEntryAnon)
-	if err != nil {
-		return nil, fmt.Errorf("signing entry error: %w", err)
-	}
-
-	scBytes, err := util.CreateAndSignCheckpoint(ctx, viper.GetString("rekor_server.hostname"), tid, root.TreeSize, root.RootHash, api.signer)
-	if err != nil {
-		return nil, err
-	}
-
-	inclusionProof := models.InclusionProof{
-		TreeSize:   swag.Int64(int64(root.TreeSize)),
-		RootHash:   swag.String(hex.EncodeToString(root.RootHash)),
-		LogIndex:   swag.Int64(proof.GetLeafIndex()),
-		Hashes:     hashes,
-		Checkpoint: stringPointer(string(scBytes)),
-	}
-
-	uuid := hex.EncodeToString(leaf.MerkleLeafHash)
-	treeID := fmt.Sprintf("%x", tid)
-	entryIDstruct, err := sharding.CreateEntryIDFromParts(treeID, uuid)
-	if err != nil {
-		return nil, fmt.Errorf("error creating EntryID from active treeID %v and uuid %v: %w", treeID, uuid, err)
-	}
-	entryID := entryIDstruct.ReturnEntryIDString()
-
-	logEntryAnon.Verification = &models.LogEntryAnonVerification{
-		InclusionProof:       &inclusionProof,
-		SignedEntryTimestamp: strfmt.Base64(signature),
-	}
-
-	return models.LogEntry{
-		entryID: logEntryAnon}, nil
 }
 
 // GetLogEntryAndProofByIndexHandler returns the entry and inclusion proof for a specified log index
@@ -327,26 +266,90 @@ var ErrNotFound = errors.New("grpc returned 0 leaves with success code")
 func retrieveLogEntryByIndex(ctx context.Context, logIndex int) (models.LogEntry, error) {
 	log.ContextLogger(ctx).Infof("Retrieving log entry by index %d", logIndex)
 
-	tid, resolvedIndex := api.logRanges.ResolveVirtualIndex(logIndex)
-	tc := trillianclient.NewTrillianClient(ctx, api.logClient, tid) // FIXME:tessera
-	log.ContextLogger(ctx).Debugf("Retrieving resolved index %v from TreeID %v", resolvedIndex, tid)
-
-	resp := tc.GetLeafAndProofByIndex(resolvedIndex) // FIXME:tessera
-	switch resp.Status {
-	case codes.OK:
-	case codes.NotFound, codes.OutOfRange, codes.InvalidArgument:
-		return models.LogEntry{}, ErrNotFound
-	default:
-		return models.LogEntry{}, fmt.Errorf("grpc err: %w: %s", resp.Err, trillianCommunicationError)
+	entryBundle, err := tesseraStorage.ReadEntryBundle(ctx, uint64(logIndex/256))
+	if err != nil {
+		return models.LogEntry{}, err
 	}
-
-	result := resp.GetLeafAndProofResult
-	leaf := result.Leaf
-	if leaf == nil {
+	if entryBundle == nil {
 		return models.LogEntry{}, ErrNotFound
 	}
+	bundle := tesseraapi.EntryBundle{}
+	if err := bundle.UnmarshalText(entryBundle); err != nil {
+		return models.LogEntry{}, err
+	}
+	if logIndex%256 >= len(bundle.Entries) {
+		return models.LogEntry{}, ErrNotFound
+	}
+	entry := bundle.Entries[logIndex%256]
 
-	return logEntryFromLeaf(ctx, api.signer, leaf, result.SignedLogRoot, result.Proof, tid, api.logRanges)
+	tesseraEntry := tessera.NewEntry(entry)
+
+	logEntryAnon := models.LogEntryAnon{
+		LogID:          swag.String(api.pubkeyHash),
+		LogIndex:       swag.Int64(int64(logIndex)),
+		Body:           entry,
+		IntegratedTime: swag.Int64(time.Now().Unix()), // FIXME
+	}
+
+	signature, err := signEntry(ctx, api.signer, logEntryAnon)
+	if err != nil {
+		return models.LogEntry{}, err
+	}
+
+	checkpointBody, err := tesseraStorage.ReadCheckpoint(context.TODO())
+	if err != nil {
+		return models.LogEntry{}, err
+	}
+	if checkpointBody == nil {
+		return models.LogEntry{}, ErrNotFound
+	}
+	checkpoint := logFormat.Checkpoint{}
+	_, err = checkpoint.Unmarshal(checkpointBody)
+	if err != nil {
+		return models.LogEntry{}, err
+	}
+	scBytes, err := util.CreateAndSignCheckpoint(ctx, viper.GetString("rekor_server.hostname"), api.logID, checkpoint.Size, checkpoint.Hash, api.signer)
+	if err != nil {
+		return models.LogEntry{}, err
+	}
+	tileOnlyFetcher := func(ctx context.Context, path string) ([]byte, error) {
+		pathParts := strings.SplitN(path, "/", 3)
+		level, index, width, err := layout.ParseTileLevelIndexWidth(pathParts[1], pathParts[2])
+		if err != nil {
+			return nil, err
+		}
+		return tesseraStorage.ReadTile(ctx, level, index, width)
+	}
+	proofBuilder, err := client.NewProofBuilder(ctx, checkpoint, tileOnlyFetcher)
+	if err != nil {
+		return models.LogEntry{}, err
+	}
+	proof, err := proofBuilder.InclusionProof(ctx, uint64(logIndex))
+	if err != nil {
+		return models.LogEntry{}, err
+	}
+	hashes := make([]string, len(proof))
+	for i, h := range proof {
+		hashes[i] = hex.EncodeToString(h)
+	}
+
+	inclusionProof := models.InclusionProof{
+		TreeSize:   swag.Int64(int64(checkpoint.Size)),
+		RootHash:   swag.String(hex.EncodeToString(checkpoint.Hash)),
+		LogIndex:   swag.Int64(int64(logIndex)),
+		Hashes:     hashes,
+		Checkpoint: swag.String(string(scBytes)),
+	}
+
+	logEntryAnon.Verification = &models.LogEntryAnonVerification{
+		InclusionProof:       &inclusionProof,
+		SignedEntryTimestamp: strfmt.Base64(signature),
+	}
+
+	entryID := hex.EncodeToString(tesseraEntry.LeafHash())
+	return models.LogEntry{
+		entryID: logEntryAnon,
+	}, nil
 }
 
 // handlers for APIs that may be disabled in a given instance
