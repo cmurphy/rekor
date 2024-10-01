@@ -23,16 +23,13 @@ import (
 	"strings"
 
 	"github.com/go-openapi/runtime/middleware"
-	"github.com/google/trillian/types"
 	"github.com/spf13/viper"
 	logFormat "github.com/transparency-dev/formats/log"
 	"github.com/transparency-dev/trillian-tessera/api/layout"
 	"github.com/transparency-dev/trillian-tessera/client"
-	"google.golang.org/grpc/codes"
 
 	"github.com/sigstore/rekor/pkg/generated/models"
 	"github.com/sigstore/rekor/pkg/generated/restapi/operations/tlog"
-	"github.com/sigstore/rekor/pkg/trillianclient"
 	"github.com/sigstore/rekor/pkg/util"
 )
 
@@ -129,36 +126,6 @@ func GetLogProofHandler(params tlog.GetLogProofParams) middleware.Responder {
 	}
 
 	return tlog.NewGetLogProofOK().WithPayload(&consistencyProof)
-}
-
-func inactiveShardLogInfo(ctx context.Context, tid int64) (*models.InactiveShardLogInfo, error) {
-	tc := trillianclient.NewTrillianClient(ctx, api.logClient, tid) // FIXME:tessera
-	resp := tc.GetLatest(0)                                         // FIXME:tessera
-	if resp.Status != codes.OK {
-		return nil, fmt.Errorf("resp code is %d", resp.Status)
-	}
-	result := resp.GetLatestResult
-
-	root := &types.LogRootV1{}
-	if err := root.UnmarshalBinary(result.SignedLogRoot.LogRoot); err != nil {
-		return nil, err
-	}
-
-	hashString := hex.EncodeToString(root.RootHash)
-	treeSize := int64(root.TreeSize)
-
-	scBytes, err := util.CreateAndSignCheckpoint(ctx, viper.GetString("rekor_server.hostname"), tid, root.TreeSize, root.RootHash, api.signer)
-	if err != nil {
-		return nil, err
-	}
-
-	m := models.InactiveShardLogInfo{
-		RootHash:       &hashString,
-		TreeSize:       &treeSize,
-		TreeID:         stringPointer(fmt.Sprintf("%d", tid)),
-		SignedTreeHead: stringPointer(string(scBytes)),
-	}
-	return &m, nil
 }
 
 // handlers for APIs that may be disabled in a given instance
