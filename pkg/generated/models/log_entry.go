@@ -88,9 +88,6 @@ func (m LogEntry) ContextValidate(ctx context.Context, formats strfmt.Registry) 
 // swagger:model LogEntryAnon
 type LogEntryAnon struct {
 
-	// attestation
-	Attestation *LogEntryAnonAttestation `json:"attestation,omitempty"`
-
 	// body
 	// Required: true
 	Body interface{} `json:"body"`
@@ -117,10 +114,6 @@ type LogEntryAnon struct {
 func (m *LogEntryAnon) Validate(formats strfmt.Registry) error {
 	var res []error
 
-	if err := m.validateAttestation(formats); err != nil {
-		res = append(res, err)
-	}
-
 	if err := m.validateBody(formats); err != nil {
 		res = append(res, err)
 	}
@@ -144,25 +137,6 @@ func (m *LogEntryAnon) Validate(formats strfmt.Registry) error {
 	if len(res) > 0 {
 		return errors.CompositeValidationError(res...)
 	}
-	return nil
-}
-
-func (m *LogEntryAnon) validateAttestation(formats strfmt.Registry) error {
-	if swag.IsZero(m.Attestation) { // not required
-		return nil
-	}
-
-	if m.Attestation != nil {
-		if err := m.Attestation.Validate(formats); err != nil {
-			if ve, ok := err.(*errors.Validation); ok {
-				return ve.ValidateName("attestation")
-			} else if ce, ok := err.(*errors.CompositeError); ok {
-				return ce.ValidateName("attestation")
-			}
-			return err
-		}
-	}
-
 	return nil
 }
 
@@ -233,10 +207,6 @@ func (m *LogEntryAnon) validateVerification(formats strfmt.Registry) error {
 func (m *LogEntryAnon) ContextValidate(ctx context.Context, formats strfmt.Registry) error {
 	var res []error
 
-	if err := m.contextValidateAttestation(ctx, formats); err != nil {
-		res = append(res, err)
-	}
-
 	if err := m.contextValidateVerification(ctx, formats); err != nil {
 		res = append(res, err)
 	}
@@ -244,27 +214,6 @@ func (m *LogEntryAnon) ContextValidate(ctx context.Context, formats strfmt.Regis
 	if len(res) > 0 {
 		return errors.CompositeValidationError(res...)
 	}
-	return nil
-}
-
-func (m *LogEntryAnon) contextValidateAttestation(ctx context.Context, formats strfmt.Registry) error {
-
-	if m.Attestation != nil {
-
-		if swag.IsZero(m.Attestation) { // not required
-			return nil
-		}
-
-		if err := m.Attestation.ContextValidate(ctx, formats); err != nil {
-			if ve, ok := err.(*errors.Validation); ok {
-				return ve.ValidateName("attestation")
-			} else if ce, ok := err.(*errors.CompositeError); ok {
-				return ce.ValidateName("attestation")
-			}
-			return err
-		}
-	}
-
 	return nil
 }
 
@@ -300,44 +249,6 @@ func (m *LogEntryAnon) MarshalBinary() ([]byte, error) {
 // UnmarshalBinary interface implementation
 func (m *LogEntryAnon) UnmarshalBinary(b []byte) error {
 	var res LogEntryAnon
-	if err := swag.ReadJSON(b, &res); err != nil {
-		return err
-	}
-	*m = res
-	return nil
-}
-
-// LogEntryAnonAttestation log entry anon attestation
-//
-// swagger:model LogEntryAnonAttestation
-type LogEntryAnonAttestation struct {
-
-	// data
-	// Format: byte
-	Data strfmt.Base64 `json:"data,omitempty"`
-}
-
-// Validate validates this log entry anon attestation
-func (m *LogEntryAnonAttestation) Validate(formats strfmt.Registry) error {
-	return nil
-}
-
-// ContextValidate validates this log entry anon attestation based on context it is used
-func (m *LogEntryAnonAttestation) ContextValidate(ctx context.Context, formats strfmt.Registry) error {
-	return nil
-}
-
-// MarshalBinary interface implementation
-func (m *LogEntryAnonAttestation) MarshalBinary() ([]byte, error) {
-	if m == nil {
-		return nil, nil
-	}
-	return swag.WriteJSON(m)
-}
-
-// UnmarshalBinary interface implementation
-func (m *LogEntryAnonAttestation) UnmarshalBinary(b []byte) error {
-	var res LogEntryAnonAttestation
 	if err := swag.ReadJSON(b, &res); err != nil {
 		return err
 	}

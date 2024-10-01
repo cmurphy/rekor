@@ -25,7 +25,6 @@ import (
 	"net/url"
 
 	"github.com/cyberphone/json-canonicalization/go/src/webpki.org/jsoncanonicalizer"
-	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/go-openapi/strfmt"
 	"github.com/go-openapi/swag"
@@ -119,42 +118,6 @@ func logEntryFromLeaf(ctx context.Context, signer signature.Signer, leaf *trilli
 	}
 	entryID := entryIDstruct.ReturnEntryIDString()
 
-	if viper.GetBool("enable_attestation_storage") {
-		pe, err := models.UnmarshalProposedEntry(bytes.NewReader(leaf.LeafValue), runtime.JSONConsumer())
-		if err != nil {
-			return nil, err
-		}
-		eimpl, err := types.UnmarshalEntry(pe)
-		if err != nil {
-			return nil, err
-		}
-
-		if entryWithAtt, ok := eimpl.(types.EntryWithAttestationImpl); ok {
-			var att []byte
-			var fetchErr error
-			attKey := entryWithAtt.AttestationKey()
-			// if we're given a key by the type logic, let's try that first
-			if attKey != "" {
-				att, fetchErr = attestationStorageClient.FetchAttestation(ctx, attKey)
-				if fetchErr != nil {
-					log.ContextLogger(ctx).Debugf("error fetching attestation by key, trying by UUID: %s %v", attKey, fetchErr)
-				}
-			}
-			// if looking up by key failed or we weren't able to generate a key, try looking up by uuid
-			if attKey == "" || fetchErr != nil {
-				att, fetchErr = attestationStorageClient.FetchAttestation(ctx, entryIDstruct.UUID)
-				if fetchErr != nil {
-					log.ContextLogger(ctx).Debugf("error fetching attestation by uuid: %s %v", entryIDstruct.UUID, fetchErr)
-				}
-			}
-			if fetchErr == nil {
-				logEntryAnon.Attestation = &models.LogEntryAnonAttestation{
-					Data: att,
-				}
-			}
-		}
-	}
-
 	logEntryAnon.Verification = &models.LogEntryAnonVerification{
 		InclusionProof:       &inclusionProof,
 		SignedEntryTimestamp: strfmt.Base64(signature),
@@ -243,24 +206,6 @@ func createLogEntry(params entries.CreateLogEntryParams) (models.LogEntry, middl
 		LogIndex:       swag.Int64(virtualIndex),
 		Body:           queuedLeaf.GetLeafValue(),
 		IntegratedTime: swag.Int64(queuedLeaf.IntegrateTimestamp.AsTime().Unix()),
-	}
-
-	if viper.GetBool("enable_attestation_storage") {
-		if entryWithAtt, ok := entry.(types.EntryWithAttestationImpl); ok {
-			attKey, attVal := entryWithAtt.AttestationKeyValue()
-			if attVal != nil {
-				go func() {
-					if err := storeAttestation(context.Background(), attKey, attVal); err != nil {
-						// entryIDstruct.UUID
-						log.ContextLogger(ctx).Debugf("error storing attestation: %s", err)
-					} else {
-						log.ContextLogger(ctx).Debugf("stored attestation for uuid %s with filename %s", entryIDstruct.UUID, attKey)
-					}
-				}()
-			} else {
-				log.ContextLogger(ctx).Infof("no attestation returned for %s", uuid)
-			}
-		}
 	}
 
 	signature, err := signEntry(ctx, api.signer, logEntryAnon)
@@ -411,10 +356,6 @@ func retrieveLogEntryByIndex(ctx context.Context, logIndex int) (models.LogEntry
 	}
 
 	return logEntryFromLeaf(ctx, api.signer, leaf, result.SignedLogRoot, result.Proof, tid, api.logRanges)
-}
-
-func storeAttestation(ctx context.Context, uuid string, attestation []byte) error {
-	return attestationStorageClient.StoreAttestation(ctx, uuid, attestation)
 }
 
 // handlers for APIs that may be disabled in a given instance

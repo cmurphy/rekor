@@ -40,21 +40,15 @@ import (
 )
 
 type getCmdOutput struct {
-	Attestation     string
-	AttestationType string
-	Body            interface{}
-	LogIndex        int
-	IntegratedTime  int64
-	UUID            string
-	LogID           string
+	Body           interface{}
+	LogIndex       int
+	IntegratedTime int64
+	UUID           string
+	LogID          string
 }
 
 func (g *getCmdOutput) String() string {
 	s := fmt.Sprintf("LogID: %v\n", g.LogID)
-
-	if g.Attestation != "" {
-		s += fmt.Sprintf("Attestation: %s\n", g.Attestation)
-	}
 
 	s += fmt.Sprintf("Index: %d\n", g.LogIndex)
 	dt := time.Unix(g.IntegratedTime, 0).UTC().Format(time.RFC3339)
@@ -158,10 +152,6 @@ func parseEntry(uuid string, e models.LogEntryAnon) (interface{}, error) {
 		IntegratedTime: *e.IntegratedTime,
 		LogIndex:       int(*e.LogIndex),
 		LogID:          *e.LogID,
-	}
-
-	if e.Attestation != nil {
-		obj.Attestation = string(e.Attestation.Data)
 	}
 
 	return &obj, nil

@@ -117,10 +117,6 @@ Memory and file-based signers should only be used for testing.`)
 	rootCmd.PersistentFlags().String("trillian_log_server.tls_ca_cert", "", "Certificate file to use for secure connections with Trillian server")
 	rootCmd.PersistentFlags().Bool("trillian_log_server.tls", false, "Use TLS when connecting to Trillian Server")
 
-	rootCmd.PersistentFlags().Bool("enable_attestation_storage", false, "enables rich attestation storage")
-	rootCmd.PersistentFlags().String("attestation_storage_bucket", "", "url for attestation storage bucket")
-	rootCmd.PersistentFlags().Int("max_attestation_size", 100*1024, "max size for attestation storage, in bytes")
-
 	rootCmd.PersistentFlags().StringSlice("enabled_api_endpoints", operationIDs, "list of API endpoints to enable using operationId from openapi.yaml")
 
 	rootCmd.PersistentFlags().Uint64("max_request_body_size", 0, "maximum size for HTTP request body, in bytes; set to 0 for unlimited")

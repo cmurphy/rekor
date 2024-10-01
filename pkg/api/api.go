@@ -37,7 +37,6 @@ import (
 	"github.com/sigstore/rekor/pkg/pubsub"
 	"github.com/sigstore/rekor/pkg/sharding"
 	"github.com/sigstore/rekor/pkg/signer"
-	"github.com/sigstore/rekor/pkg/storage"
 	"github.com/sigstore/rekor/pkg/trillianclient"
 	"github.com/sigstore/rekor/pkg/witness"
 	"github.com/sigstore/sigstore/pkg/cryptoutils"
@@ -177,9 +176,8 @@ func NewAPI(treeID uint) (*API, error) {
 }
 
 var (
-	api                      *API
-	attestationStorageClient storage.AttestationStorage
-	redisClient              *redis.Client
+	api         *API
+	redisClient *redis.Client
 )
 
 func ConfigureAPI(treeID uint) {
@@ -188,13 +186,6 @@ func ConfigureAPI(treeID uint) {
 	api, err = NewAPI(treeID)
 	if err != nil {
 		log.Logger.Panic(err)
-	}
-
-	if viper.GetBool("enable_attestation_storage") {
-		attestationStorageClient, err = storage.NewAttestationStorage()
-		if err != nil {
-			log.Logger.Panic(err)
-		}
 	}
 
 	if viper.GetBool("enable_stable_checkpoint") {
