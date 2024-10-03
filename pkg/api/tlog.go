@@ -24,7 +24,7 @@ import (
 
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/spf13/viper"
-	logFormat "github.com/transparency-dev/formats/log"
+	logformat "github.com/transparency-dev/formats/log"
 	"github.com/transparency-dev/trillian-tessera/api/layout"
 	"github.com/transparency-dev/trillian-tessera/client"
 
@@ -35,14 +35,14 @@ import (
 
 // GetLogInfoHandler returns the current size of the tree and the STH
 func GetLogInfoHandler(params tlog.GetLogInfoParams) middleware.Responder {
-	checkpointBody, err := tesseraStorage.ReadCheckpoint(context.TODO())
+	checkpointBody, err := api.tesseraStorage.ReadCheckpoint(context.TODO())
 	if err != nil {
 		return handleRekorAPIError(params, http.StatusInternalServerError, fmt.Errorf("checkpoint error: %w", err), "")
 	}
 	if checkpointBody == nil {
 		return handleRekorAPIError(params, http.StatusNotFound, err, "")
 	}
-	var checkpoint logFormat.Checkpoint
+	var checkpoint logformat.Checkpoint
 	_, err = checkpoint.Unmarshal(checkpointBody)
 	if err != nil {
 		return handleRekorAPIError(params, http.StatusInternalServerError, err, "")
@@ -76,14 +76,14 @@ func GetLogProofHandler(params tlog.GetLogProofParams) middleware.Responder {
 	if *params.FirstSize > params.LastSize {
 		return handleRekorAPIError(params, http.StatusBadRequest, nil, fmt.Sprintf(firstSizeLessThanLastSize, *params.FirstSize, params.LastSize))
 	}
-	checkpointBody, err := tesseraStorage.ReadCheckpoint(context.TODO())
+	checkpointBody, err := api.tesseraStorage.ReadCheckpoint(context.TODO())
 	if err != nil {
 		return handleRekorAPIError(params, http.StatusInternalServerError, err, err.Error())
 	}
 	if checkpointBody == nil {
 		return handleRekorAPIError(params, http.StatusNotFound, err, "")
 	}
-	checkpoint := logFormat.Checkpoint{}
+	checkpoint := logformat.Checkpoint{}
 	_, err = checkpoint.Unmarshal(checkpointBody)
 	if err != nil {
 		return handleRekorAPIError(params, http.StatusInternalServerError, err, err.Error())
@@ -94,7 +94,7 @@ func GetLogProofHandler(params tlog.GetLogProofParams) middleware.Responder {
 		if err != nil {
 			return nil, err
 		}
-		return tesseraStorage.ReadTile(ctx, level, index, width)
+		return api.tesseraStorage.ReadTile(ctx, level, index, width)
 	}
 	proofBuilder, err := client.NewProofBuilder(context.TODO(), checkpoint, tileOnlyFetcher)
 	if err != nil {
