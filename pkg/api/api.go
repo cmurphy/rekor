@@ -27,7 +27,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/trillian"
 	"github.com/redis/go-redis/v9"
 	"github.com/spf13/viper"
 	tessera "github.com/transparency-dev/trillian-tessera"
@@ -47,8 +46,6 @@ import (
 
 	_ "github.com/sigstore/rekor/pkg/pubsub/gcp" // Load GCP pubsub implementation
 )
-
-var tesseraStorage *mysql.Storage
 
 func dial(rpcServer string) (*grpc.ClientConn, error) {
 	// Extract the hostname without the port
@@ -93,12 +90,12 @@ func dial(rpcServer string) (*grpc.ClientConn, error) {
 }
 
 type API struct {
-	logClient  trillian.TrillianLogClient
-	logID      int64
-	logRanges  sharding.LogRanges
-	pubkey     string // PEM encoded public key
-	pubkeyHash string // SHA256 hash of DER-encoded public key
-	signer     signature.Signer
+	tesseraStorage *mysql.Storage
+	logID          int64
+	logRanges      sharding.LogRanges
+	pubkey         string // PEM encoded public key
+	pubkeyHash     string // SHA256 hash of DER-encoded public key
+	signer         signature.Signer
 	// stops checkpoint publishing
 	checkpointPublishCancel context.CancelFunc
 	// Publishes notifications when new entries are added to the log. May be
@@ -107,18 +104,10 @@ type API struct {
 }
 
 func NewAPI(treeID uint) (*API, error) {
-	logRPCServer := fmt.Sprintf("%s:%d",
-		viper.GetString("trillian_log_server.address"),
-		viper.GetUint("trillian_log_server.port"))
 	ctx := context.Background()
-	tConn, err := dial(logRPCServer)
-	if err != nil {
-		return nil, fmt.Errorf("dial: %w", err)
-	}
-	logClient := trillian.NewTrillianLogClient(tConn)
 
 	shardingConfig := viper.GetString("trillian_log_server.sharding_config")
-	ranges, err := sharding.NewLogRanges(ctx, logClient, shardingConfig, treeID)
+	ranges, err := sharding.NewLogRanges(ctx, nil, shardingConfig, treeID)
 	if err != nil {
 		return nil, fmt.Errorf("unable get sharding details from sharding config: %w", err)
 	}
@@ -126,23 +115,23 @@ func NewAPI(treeID uint) (*API, error) {
 	tid := int64(treeID)
 	if tid == 0 {
 		log.Logger.Info("No tree ID specified, attempting to create a new tree")
-		db, err := createDatabase(ctx, "root:root@tcp(127.0.0.1:3307)/test_tessera", 3*time.Minute, 64, 64)
-		if err != nil {
-			return nil, err
-		}
-		noteSigner, err := createSigner("/home/colleenmurphy/dev/trillian-tessera/cmd/conformance/mysql/docker/testdata/key")
-		if err != nil {
-			return nil, err
-		}
-		_, noteVerifier, err := createVerifier("/home/colleenmurphy/dev/trillian-tessera/cmd/conformance/mysql/docker/testdata/key.pub")
-		if err != nil {
-			return nil, err
-		}
-		tesseraStorage, err = mysql.New(ctx, db, tessera.WithCheckpointSignerVerifier(noteSigner, noteVerifier))
-		if err != nil {
-			return nil, err
-		}
 		tid = 42
+	}
+	db, err := createDatabase(ctx, "root:root@tcp(127.0.0.1:3307)/test_tessera", 3*time.Minute, 64, 64)
+	if err != nil {
+		return nil, err
+	}
+	noteSigner, err := createSigner("/home/colleenmurphy/dev/trillian-tessera/cmd/conformance/mysql/docker/testdata/key") // FIXME: configurable key paths
+	if err != nil {
+		return nil, err
+	}
+	_, noteVerifier, err := createVerifier("/home/colleenmurphy/dev/trillian-tessera/cmd/conformance/mysql/docker/testdata/key.pub") // FIXME: configurable key paths
+	if err != nil {
+		return nil, err
+	}
+	tesseraStorage, err := mysql.New(ctx, db, tessera.WithCheckpointSignerVerifier(noteSigner, noteVerifier))
+	if err != nil {
+		return nil, err
 	}
 	log.Logger.Infof("Starting Rekor server with active tree %v", tid)
 	ranges.SetActive(tid)
@@ -178,9 +167,9 @@ func NewAPI(treeID uint) (*API, error) {
 
 	return &API{
 		// Transparency Log Stuff
-		logClient: logClient,
-		logID:     tid,
-		logRanges: ranges,
+		tesseraStorage: tesseraStorage,
+		logID:          tid,
+		logRanges:      ranges,
 		// Signing/verifying fields
 		pubkey:     string(pubkey),
 		pubkeyHash: hex.EncodeToString(pubkeyHashBytes[:]),
@@ -205,7 +194,7 @@ func ConfigureAPI(treeID uint) {
 
 	if viper.GetBool("enable_stable_checkpoint") {
 		redisClient = NewRedisClient()
-		checkpointPublisher := witness.NewCheckpointPublisher(context.Background(), api.logClient, api.logRanges.ActiveTreeID(),
+		checkpointPublisher := witness.NewCheckpointPublisher(context.Background(), api.tesseraStorage, api.logRanges.ActiveTreeID(),
 			viper.GetString("rekor_server.hostname"), api.signer, redisClient, viper.GetUint("publish_frequency"), CheckpointPublishCount)
 
 		// create context to cancel goroutine on server shutdown

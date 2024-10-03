@@ -37,7 +37,7 @@ func initDatabaseSchema(ctx context.Context, mysqlURI string) error {
 		}
 	}()
 
-	initSchemaPath := "/home/colleenmurphy/dev/trillian-tessera/storage/mysql/schema.sql"
+	initSchemaPath := "/home/colleenmurphy/dev/trillian-tessera/storage/mysql/schema.sql" // FIXME: copy into rekor source
 	rawSchema, err := os.ReadFile(initSchemaPath)
 	if err != nil {
 		return fmt.Errorf("Failed to read init schema file %q: %w", initSchemaPath, err)

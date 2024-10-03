@@ -21,22 +21,20 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/google/trillian"
-	"github.com/google/trillian/types"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/redis/go-redis/v9"
 	"github.com/sigstore/rekor/pkg/log"
-	"github.com/sigstore/rekor/pkg/trillianclient"
 	"github.com/sigstore/rekor/pkg/util"
 	"github.com/sigstore/sigstore/pkg/signature"
-	"google.golang.org/grpc/codes"
+	logformat "github.com/transparency-dev/formats/log"
+	"github.com/transparency-dev/trillian-tessera/storage/mysql"
 )
 
 // CheckpointPublisher is a long-running job to periodically publish signed checkpoints to etc.d
 type CheckpointPublisher struct {
 	ctx context.Context
-	// logClient is the client for Trillian
-	logClient trillian.TrillianLogClient
+	// tesseraStorage is the client for Tessera
+	tesseraStorage *mysql.Storage
 	// treeID is used to construct the origin and configure the Trillian client
 	treeID int64
 	// hostname is used to construct the origin ("hostname - treeID")
@@ -64,14 +62,14 @@ const (
 
 // NewCheckpointPublisher creates a CheckpointPublisher to write stable checkpoints to Redis
 func NewCheckpointPublisher(ctx context.Context,
-	logClient trillian.TrillianLogClient,
+	tesseraStorage *mysql.Storage,
 	treeID int64,
 	hostname string,
 	signer signature.Signer,
 	redisClient *redis.Client,
 	checkpointFreq uint,
 	reqCounter *prometheus.CounterVec) CheckpointPublisher {
-	return CheckpointPublisher{ctx: ctx, logClient: logClient, treeID: treeID, hostname: hostname,
+	return CheckpointPublisher{ctx: ctx, tesseraStorage: tesseraStorage, treeID: treeID, hostname: hostname,
 		signer: signer, checkpointFreq: checkpointFreq, redisClient: redisClient, reqCounter: reqCounter}
 }
 
@@ -81,11 +79,10 @@ func NewCheckpointPublisher(ctx context.Context,
 // before publishing the latest checkpoint. If this occurs due to a sporadic failure, this simply
 // means that a witness will not see a fresh checkpoint for an additional period.
 func (c *CheckpointPublisher) StartPublisher(ctx context.Context) {
-	tc := trillianclient.NewTrillianClient(context.Background(), c.logClient, c.treeID) // FIXME:tessera
 	sTreeID := strconv.FormatInt(c.treeID, 10)
 
 	// publish on startup to ensure a checkpoint is available the first time Rekor starts up
-	c.publish(&tc, sTreeID) // FIXME:tessera
+	c.publish(sTreeID)
 
 	ticker := time.NewTicker(time.Duration(c.checkpointFreq) * time.Minute)
 	go func() {
@@ -94,29 +91,28 @@ func (c *CheckpointPublisher) StartPublisher(ctx context.Context) {
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				c.publish(&tc, sTreeID) // FIXME:tessera
+				c.publish(sTreeID)
 			}
 		}
 	}()
 }
 
 // publish publishes the latest checkpoint to Redis once
-func (c *CheckpointPublisher) publish(tc *trillianclient.TrillianClient, sTreeID string) { // FIXME:tessera
+func (c *CheckpointPublisher) publish(sTreeID string) {
 	// get latest checkpoint
-	resp := tc.GetLatest(0) // FIXME:tessera
-	if resp.Status != codes.OK {
+	checkpointBody, err := c.tesseraStorage.ReadCheckpoint(c.ctx)
+	if err != nil || checkpointBody == nil {
 		c.reqCounter.With(
 			map[string]string{
 				"shard": sTreeID,
 				"code":  strconv.Itoa(GetCheckpoint),
 			}).Inc()
-		log.Logger.Errorf("error getting latest checkpoint to publish: %v", resp.Status)
+		log.Logger.Errorf("error getting latest checkpoint to publish: %v", err)
 		return
 	}
-
-	// unmarshal checkpoint
-	root := &types.LogRootV1{}
-	if err := root.UnmarshalBinary(resp.GetLatestResult.SignedLogRoot.LogRoot); err != nil {
+	var checkpoint logformat.Checkpoint
+	_, err = checkpoint.Unmarshal(checkpointBody)
+	if err != nil {
 		c.reqCounter.With(
 			map[string]string{
 				"shard": sTreeID,
@@ -127,7 +123,7 @@ func (c *CheckpointPublisher) publish(tc *trillianclient.TrillianClient, sTreeID
 	}
 
 	// sign checkpoint with Rekor private key
-	checkpoint, err := util.CreateAndSignCheckpoint(context.Background(), c.hostname, c.treeID, root.TreeSize, root.RootHash, c.signer)
+	signedCheckpoint, err := util.CreateAndSignCheckpoint(c.ctx, c.hostname, c.treeID, checkpoint.Size, checkpoint.Hash, c.signer)
 	if err != nil {
 		c.reqCounter.With(
 			map[string]string{
@@ -139,7 +135,7 @@ func (c *CheckpointPublisher) publish(tc *trillianclient.TrillianClient, sTreeID
 	}
 
 	// encode checkpoint as hex to write to redis
-	hexCP := hex.EncodeToString(checkpoint)
+	hexCP := hex.EncodeToString(signedCheckpoint)
 
 	// write checkpoint to Redis if key does not yet exist
 	// this prevents multiple instances of Rekor from writing different checkpoints in the same time window
