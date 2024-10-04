@@ -111,15 +111,20 @@ func NewAPI(treeID uint) (*API, error) {
 		log.Logger.Info("No tree ID specified, attempting to create a new tree")
 		tid = 42
 	}
-	db, err := createDatabase(ctx, "root:root@tcp(127.0.0.1:3307)/test_tessera", 3*time.Minute, 64, 64)
+	db, err := createDatabase(ctx, "root:root@tcp(127.0.0.1:3307)/test_tessera", 3*time.Minute, 64, 64) // FIXME: configurable DB
 	if err != nil {
 		return nil, err
 	}
-	noteSigner, err := createSigner("/home/colleenmurphy/dev/trillian-tessera/cmd/conformance/mysql/docker/testdata/key") // FIXME: configurable key paths
+	privateKey := viper.GetString("tessera.signer_key_path")
+	publicKey := viper.GetString("tessera.verifier_key_path")
+	if privateKey == "" || publicKey == "" {
+		return nil, fmt.Errorf("must provide tessera.signer_key_path and tessera.public_key_path")
+	}
+	noteSigner, err := createSigner(privateKey)
 	if err != nil {
 		return nil, err
 	}
-	_, noteVerifier, err := createVerifier("/home/colleenmurphy/dev/trillian-tessera/cmd/conformance/mysql/docker/testdata/key.pub") // FIXME: configurable key paths
+	_, noteVerifier, err := createVerifier(publicKey)
 	if err != nil {
 		return nil, err
 	}
