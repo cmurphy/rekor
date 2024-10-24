@@ -136,9 +136,13 @@ var verifyCmd = &cobra.Command{
 		if err != nil {
 			return nil, err
 		}
+		notesVerifier, err := loadNotesVerifier()
+		if err != nil {
+			return nil, err
+		}
 
 		// verify inclusion proof, checkpoint, and SET
-		if err := verify.VerifyLogEntry(ctx, &entry, verifier); err != nil {
+		if err := verify.VerifyLogEntry(ctx, &entry, verifier, notesVerifier); err != nil {
 			return nil, fmt.Errorf("validating entry: %w", err)
 		}
 

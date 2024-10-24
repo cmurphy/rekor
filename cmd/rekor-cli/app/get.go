@@ -90,6 +90,10 @@ var getCmd = &cobra.Command{
 		if err != nil {
 			return nil, fmt.Errorf("retrieving rekor public key")
 		}
+		notesVerifier, err := loadNotesVerifier()
+		if err != nil {
+			return nil, fmt.Errorf("retrieving rekor public key")
+		}
 
 		if logIndex != "" {
 			params := entries.NewGetLogEntryByIndexParams()
@@ -108,13 +112,13 @@ var getCmd = &cobra.Command{
 			for ix, entry := range resp.Payload {
 				// verify log entry
 				e = entry
-				if err := verify.VerifyLogEntry(ctx, &e, verifier); err != nil {
+				if err := verify.VerifyLogEntry(ctx, &e, verifier, notesVerifier); err != nil {
 					return nil, fmt.Errorf("unable to verify entry was added to log: %w", err)
 				}
 
 				// verify checkpoint
 				if entry.Verification.InclusionProof.Checkpoint != nil {
-					if err := verify.VerifyCheckpointSignature(&e, verifier); err != nil {
+					if err := verify.VerifyCheckpointSignature(&e, notesVerifier); err != nil {
 						return nil, err
 					}
 				}

@@ -26,6 +26,7 @@ import (
 	"github.com/go-openapi/swag"
 	rclient "github.com/sigstore/rekor/pkg/generated/client"
 	"github.com/sigstore/rekor/pkg/generated/models"
+	"github.com/sigstore/sigstore/pkg/signature"
 
 	"github.com/sigstore/rekor/pkg/verify"
 	"github.com/spf13/cobra"
@@ -37,7 +38,7 @@ import (
 	"github.com/sigstore/rekor/pkg/generated/client/tlog"
 	"github.com/sigstore/rekor/pkg/log"
 	"github.com/sigstore/rekor/pkg/util"
-	"github.com/sigstore/sigstore/pkg/signature"
+	"golang.org/x/mod/sumdb/note"
 )
 
 type logInfoCmdOutput struct {
@@ -131,7 +132,7 @@ func verifyTree(ctx context.Context, rekorClient *rclient.Rekor, signedTreeHead,
 	if err := sth.UnmarshalText([]byte(signedTreeHead)); err != nil {
 		return err
 	}
-	verifier, err := loadVerifier(rekorClient)
+	verifier, err := loadNotesVerifier()
 	if err != nil {
 		return err
 	}
@@ -160,16 +161,18 @@ func verifyTree(ctx context.Context, rekorClient *rclient.Rekor, signedTreeHead,
 	return nil
 }
 
-func loadVerifier(rekorClient *rclient.Rekor) (signature.Verifier, error) {
+func loadNotesVerifier() (note.Verifier, error) {
 	publicKey := viper.GetString("rekor_server_public_key")
-	if publicKey == "" {
-		// fetch key from server
-		keyResp, err := rekorClient.Pubkey.GetPublicKey(nil)
-		if err != nil {
-			return nil, err
-		}
-		publicKey = keyResp.Payload
+	return note.NewVerifier(publicKey)
+}
+
+func loadVerifier(rekorClient *rclient.Rekor) (signature.Verifier, error) {
+	// fetch key from server
+	keyResp, err := rekorClient.Pubkey.GetPublicKey(nil)
+	if err != nil {
+		return nil, err
 	}
+	publicKey := keyResp.Payload
 
 	block, _ := pem.Decode([]byte(publicKey))
 	if block == nil {

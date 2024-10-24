@@ -23,14 +23,12 @@ import (
 	"strings"
 
 	"github.com/go-openapi/runtime/middleware"
-	"github.com/spf13/viper"
 	logformat "github.com/transparency-dev/formats/log"
 	"github.com/transparency-dev/trillian-tessera/api/layout"
 	"github.com/transparency-dev/trillian-tessera/client"
 
 	"github.com/sigstore/rekor/pkg/generated/models"
 	"github.com/sigstore/rekor/pkg/generated/restapi/operations/tlog"
-	"github.com/sigstore/rekor/pkg/util"
 )
 
 // GetLogInfoHandler returns the current size of the tree and the STH
@@ -48,18 +46,18 @@ func GetLogInfoHandler(params tlog.GetLogInfoParams) middleware.Responder {
 		return handleRekorAPIError(params, http.StatusInternalServerError, err, "")
 	}
 
-	scBytes, err := util.CreateAndSignCheckpoint(params.HTTPRequest.Context(),
-		viper.GetString("rekor_server.hostname"), api.logRanges.ActiveTreeID(), checkpoint.Size, checkpoint.Hash, api.signer)
-	if err != nil {
-		return handleRekorAPIError(params, http.StatusInternalServerError, err, sthGenerateError)
-	}
+	//scBytes, err := util.CreateAndSignCheckpoint(params.HTTPRequest.Context(),
+	//	viper.GetString("rekor_server.hostname"), api.logRanges.ActiveTreeID(), checkpoint.Size, checkpoint.Hash, api.signer)
+	//if err != nil {
+	//	return handleRekorAPIError(params, http.StatusInternalServerError, err, sthGenerateError)
+	//}
 
 	treeSize := int64(checkpoint.Size)
 	hexHash := hex.EncodeToString(checkpoint.Hash)
 	logInfo := models.LogInfo{
 		RootHash:       stringPointer(hexHash),
 		TreeSize:       &treeSize,
-		SignedTreeHead: stringPointer(string(scBytes)),
+		SignedTreeHead: stringPointer(string(checkpointBody)),
 		TreeID:         stringPointer(fmt.Sprintf("%d", api.logID)),
 		//InactiveShards: inactiveShards,
 	}

@@ -132,6 +132,10 @@ var uploadCmd = &cobra.Command{
 		if err != nil {
 			return nil, fmt.Errorf("retrieving rekor public key")
 		}
+		notesVerifier, err := loadNotesVerifier()
+		if err != nil {
+			return nil, fmt.Errorf("retrieving rekor public key")
+		}
 		if err := verify.VerifySignedEntryTimestamp(ctx, &logEntry, verifier); err != nil {
 			return nil, fmt.Errorf("unable to verify entry was added to log: %w", err)
 		}
@@ -142,7 +146,7 @@ var uploadCmd = &cobra.Command{
 				return nil, fmt.Errorf("error verifying inclusion proof: %w", err)
 			}
 			// verify checkpoint
-			if err := verify.VerifyCheckpointSignature(&logEntry, verifier); err != nil {
+			if err := verify.VerifyCheckpointSignature(&logEntry, notesVerifier); err != nil {
 				return nil, err
 			}
 		}

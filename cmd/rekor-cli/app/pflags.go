@@ -53,6 +53,7 @@ const (
 	timeoutFlag        FlagType = "timeout"
 	base64Flag         FlagType = "base64"
 	uintFlag           FlagType = "uint"
+	pubKeyFlag         FlagType = "rekor_server_public_key"
 )
 
 type newPFlagValueFunc func() pflag.Value
@@ -161,6 +162,9 @@ func initializePFlagMap() {
 		uintFlag: func() pflag.Value {
 			// This validates the string is in base64 format
 			return valueFactory(uintFlag, validateUint, "")
+		},
+		pubKeyFlag: func() pflag.Value {
+			return valueFactory(pubKeyFlag, func(string) error { return nil }, "")
 		},
 	}
 }

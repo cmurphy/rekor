@@ -19,9 +19,10 @@ import (
 	"bufio"
 	"bytes"
 	"crypto"
-	"crypto/ecdsa"
-	"crypto/ed25519"
-	"crypto/rsa"
+
+	//"crypto/ecdsa"
+	//"crypto/ed25519"
+	//"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
@@ -31,7 +32,7 @@ import (
 	"strings"
 
 	"github.com/sigstore/sigstore/pkg/signature"
-	"github.com/sigstore/sigstore/pkg/signature/options"
+	//"github.com/sigstore/sigstore/pkg/signature/options"
 	"golang.org/x/mod/sumdb/note"
 )
 
@@ -71,22 +72,23 @@ func (s *SignedNote) Sign(identity string, signer signature.Signer, opts signatu
 
 // Verify checks that one of the signatures can be successfully verified using
 // the supplied public key
-func (s SignedNote) Verify(verifier signature.Verifier) bool {
+func (s SignedNote) Verify(verifier note.Verifier) bool {
 	if len(s.Signatures) == 0 {
 		return false
 	}
 
 	msg := []byte(s.Note)
-	digest := sha256.Sum256(msg)
+	//digest := sha256.Sum256(msg)
 
-	pk, err := verifier.PublicKey()
-	if err != nil {
-		return false
-	}
-	verifierPkHash, err := getPublicKeyHash(pk)
-	if err != nil {
-		return false
-	}
+	//pk, err := verifier.PublicKey()
+	//if err != nil {
+	//	return false
+	//}
+	//verifierPkHash, err := getPublicKeyHash(pk)
+	//if err != nil {
+	//	return false
+	//}
+	verifierPkHash := verifier.KeyHash()
 
 	for _, s := range s.Signatures {
 		sigBytes, err := base64.StdEncoding.DecodeString(s.Base64)
@@ -98,16 +100,19 @@ func (s SignedNote) Verify(verifier signature.Verifier) bool {
 			return false
 		}
 
-		opts := []signature.VerifyOption{}
-		switch pk.(type) {
-		case *rsa.PublicKey, *ecdsa.PublicKey:
-			opts = append(opts, options.WithDigest(digest[:]))
-		case ed25519.PublicKey:
-			break
-		default:
-			return false
-		}
-		if err := verifier.VerifySignature(bytes.NewReader(sigBytes), bytes.NewReader(msg), opts...); err != nil {
+		//opts := []signature.VerifyOption{}
+		//switch pk.(type) {
+		//case *rsa.PublicKey, *ecdsa.PublicKey:
+		//	opts = append(opts, options.WithDigest(digest[:]))
+		//case ed25519.PublicKey:
+		//	break
+		//default:
+		//	return false
+		//}
+		//if err := verifier.VerifySignature(bytes.NewReader(sigBytes), bytes.NewReader(msg), opts...); err != nil {
+		//	return false
+		//}
+		if valid := verifier.Verify(msg, sigBytes); !valid {
 			return false
 		}
 	}

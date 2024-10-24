@@ -67,6 +67,7 @@ func init() {
 	rootCmd.PersistentFlags().Var(NewFlagValue(formatFlag, "default"), "format", "Command output format")
 	rootCmd.PersistentFlags().Var(NewFlagValue(timeoutFlag, "30s"), "timeout", "HTTP timeout")
 	rootCmd.PersistentFlags().Var(NewFlagValue(uintFlag, fmt.Sprintf("%d", client.DefaultRetryCount)), "retry", "Number of times to retry HTTP requests")
+	rootCmd.PersistentFlags().Var(NewFlagValue(pubKeyFlag, ""), "rekor_server_public_key", "")
 
 	// these are bound here and not in PreRun so that all child commands can use them
 	if err := viper.BindPFlags(rootCmd.PersistentFlags()); err != nil {

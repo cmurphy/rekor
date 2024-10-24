@@ -33,6 +33,7 @@ import (
 	"github.com/sigstore/sigstore/pkg/signature/options"
 	"github.com/transparency-dev/merkle/proof"
 	"github.com/transparency-dev/merkle/rfc6962"
+	"golang.org/x/mod/sumdb/note"
 )
 
 // ProveConsistency verifies consistency between an initial, trusted STH
@@ -78,7 +79,7 @@ func ProveConsistency(ctx context.Context, rClient *client.Rekor,
 // VerifyCurrentCheckpoint verifies the provided checkpoint by verifying consistency
 // against a newly fetched Checkpoint.
 // nolint
-func VerifyCurrentCheckpoint(ctx context.Context, rClient *client.Rekor, verifier signature.Verifier,
+func VerifyCurrentCheckpoint(ctx context.Context, rClient *client.Rekor, verifier note.Verifier,
 	oldSTH *util.SignedCheckpoint) (*util.SignedCheckpoint, error) {
 	// The oldSTH should already be verified, but check for robustness.
 	if !oldSTH.Verify(verifier) {
@@ -113,7 +114,7 @@ func VerifyCurrentCheckpoint(ctx context.Context, rClient *client.Rekor, verifie
 // VerifyCheckpointSignature verifies the signature on a checkpoint (signed tree head). It does
 // not verify consistency against other checkpoints.
 // nolint
-func VerifyCheckpointSignature(e *models.LogEntryAnon, verifier signature.Verifier) error {
+func VerifyCheckpointSignature(e *models.LogEntryAnon, verifier note.Verifier) error {
 	sth := &util.SignedCheckpoint{}
 	if err := sth.UnmarshalText([]byte(*e.Verification.InclusionProof.Checkpoint)); err != nil {
 		return fmt.Errorf("unmarshalling log entry checkpoint to SignedCheckpoint: %w", err)
@@ -214,14 +215,14 @@ func VerifySignedEntryTimestamp(ctx context.Context, e *models.LogEntryAnon, ver
 // Performs inclusion proof verification up to a verified root hash,
 // SignedEntryTimestamp verification, and checkpoint verification.
 // nolint
-func VerifyLogEntry(ctx context.Context, e *models.LogEntryAnon, verifier signature.Verifier) error {
+func VerifyLogEntry(ctx context.Context, e *models.LogEntryAnon, verifier signature.Verifier, checkpointVerifier note.Verifier) error {
 	// Verify the inclusion proof using the body's leaf hash.
 	if err := VerifyInclusion(ctx, e); err != nil {
 		return err
 	}
 
 	// Verify checkpoint, which includes a signed root hash.
-	if err := VerifyCheckpointSignature(e, verifier); err != nil {
+	if err := VerifyCheckpointSignature(e, checkpointVerifier); err != nil {
 		return err
 	}
 
