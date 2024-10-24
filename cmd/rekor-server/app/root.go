@@ -99,9 +99,6 @@ func init() {
 Memory and file-based signers should only be used for testing.`)
 	rootCmd.PersistentFlags().String("rekor_server.signer-passwd", "", "Password to decrypt signer private key")
 
-	rootCmd.PersistentFlags().String("tessera.signer_key_path", "", "Path to private key for Tessera")  // FIXME: sync this with rekor_server.signer?
-	rootCmd.PersistentFlags().String("tessera.verifier_key_path", "", "Path to public key for Tessera") // FIXME: sync this with rekor_server.signer?
-
 	rootCmd.PersistentFlags().String("rekor_server.new_entry_publisher", "", "URL for pub/sub queue to send messages to when new entries are added to the log. Ignored if not set. Supported providers: [gcppubsub]")
 	rootCmd.PersistentFlags().Bool("rekor_server.publish_events_protobuf", false, "Whether to publish events in Protobuf wire format. Applies to all enabled event types.")
 	rootCmd.PersistentFlags().Bool("rekor_server.publish_events_json", false, "Whether to publish events in CloudEvents JSON format. Applies to all enabled event types.")
