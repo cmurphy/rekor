@@ -29,6 +29,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 	"github.com/spf13/viper"
+	f_log "github.com/transparency-dev/formats/log"
 	tessera "github.com/transparency-dev/trillian-tessera"
 	"github.com/transparency-dev/trillian-tessera/storage/mysql"
 	"google.golang.org/grpc"
@@ -121,20 +122,23 @@ func NewAPI(treeID uint) (*API, error) {
 	if err != nil {
 		return nil, err
 	}
-	privateKey := viper.GetString("tessera.signer_key_path")
-	publicKey := viper.GetString("tessera.verifier_key_path")
-	if privateKey == "" || publicKey == "" {
-		return nil, fmt.Errorf("must provide tessera.signer_key_path and tessera.public_key_path")
+	// Rekor signs the checkpoints itself, no need to create a separate checkpoint signer for Tessera
+	withNoopCP := func(o *tessera.StorageOptions) {
+		o.NewCP = func(size uint64, hash []byte) ([]byte, error) {
+			cp := f_log.Checkpoint{
+				Origin: viper.GetString("rekor_server.hostname"),
+				Size:   size,
+				Hash:   hash,
+			}.Marshal()
+			return cp, nil
+		}
+		o.ParseCP = func(raw []byte) (*f_log.Checkpoint, error) {
+			cp := &f_log.Checkpoint{}
+			_, err := cp.Unmarshal(raw)
+			return cp, err
+		}
 	}
-	noteSigner, err := createSigner(privateKey)
-	if err != nil {
-		return nil, err
-	}
-	_, noteVerifier, err := createVerifier(publicKey)
-	if err != nil {
-		return nil, err
-	}
-	tesseraStorage, err := mysql.New(ctx, db, tessera.WithCheckpointSignerVerifier(noteSigner, noteVerifier))
+	tesseraStorage, err := mysql.New(ctx, db, withNoopCP)
 	if err != nil {
 		return nil, err
 	}
