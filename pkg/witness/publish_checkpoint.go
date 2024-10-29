@@ -24,17 +24,17 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/redis/go-redis/v9"
 	"github.com/sigstore/rekor/pkg/log"
+	"github.com/sigstore/rekor/pkg/tessera"
 	"github.com/sigstore/rekor/pkg/util"
 	"github.com/sigstore/sigstore/pkg/signature"
 	logformat "github.com/transparency-dev/formats/log"
-	"github.com/transparency-dev/trillian-tessera/storage/mysql"
 )
 
 // CheckpointPublisher is a long-running job to periodically publish signed checkpoints to etc.d
 type CheckpointPublisher struct {
 	ctx context.Context
-	// tesseraStorage is the client for Tessera
-	tesseraStorage *mysql.Storage
+	// tesseraClient is the client for Tessera
+	tesseraClient *tessera.TesseraClient
 	// treeID is used to construct the origin and configure the Trillian client
 	treeID int64
 	// hostname is used to construct the origin ("hostname - treeID")
@@ -62,14 +62,14 @@ const (
 
 // NewCheckpointPublisher creates a CheckpointPublisher to write stable checkpoints to Redis
 func NewCheckpointPublisher(ctx context.Context,
-	tesseraStorage *mysql.Storage,
+	tesseraClient *tessera.TesseraClient,
 	treeID int64,
 	hostname string,
 	signer signature.Signer,
 	redisClient *redis.Client,
 	checkpointFreq uint,
 	reqCounter *prometheus.CounterVec) CheckpointPublisher {
-	return CheckpointPublisher{ctx: ctx, tesseraStorage: tesseraStorage, treeID: treeID, hostname: hostname,
+	return CheckpointPublisher{ctx: ctx, tesseraClient: tesseraClient, treeID: treeID, hostname: hostname,
 		signer: signer, checkpointFreq: checkpointFreq, redisClient: redisClient, reqCounter: reqCounter}
 }
 
@@ -100,7 +100,17 @@ func (c *CheckpointPublisher) StartPublisher(ctx context.Context) {
 // publish publishes the latest checkpoint to Redis once
 func (c *CheckpointPublisher) publish(sTreeID string) {
 	// get latest checkpoint
-	checkpointBody, err := c.tesseraStorage.ReadCheckpoint(c.ctx)
+	tesseraStorage, err := c.tesseraClient.Connect(c.ctx, "test_tessera") // FIXME: shard tree name
+	if err != nil {
+		c.reqCounter.With(
+			map[string]string{
+				"shard": sTreeID,
+				"code":  strconv.Itoa(GetCheckpoint),
+			}).Inc()
+		log.Logger.Errorf("error connecting to tessera database: %v", err)
+		return
+	}
+	checkpointBody, err := tesseraStorage.ReadCheckpoint(c.ctx)
 	if err != nil || checkpointBody == nil {
 		c.reqCounter.With(
 			map[string]string{

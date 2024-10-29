@@ -29,9 +29,6 @@ import (
 
 	"github.com/redis/go-redis/v9"
 	"github.com/spf13/viper"
-	f_log "github.com/transparency-dev/formats/log"
-	tessera "github.com/transparency-dev/trillian-tessera"
-	"github.com/transparency-dev/trillian-tessera/storage/mysql"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
@@ -40,6 +37,7 @@ import (
 	"github.com/sigstore/rekor/pkg/pubsub"
 	"github.com/sigstore/rekor/pkg/sharding"
 	"github.com/sigstore/rekor/pkg/signer"
+	"github.com/sigstore/rekor/pkg/tessera"
 	"github.com/sigstore/rekor/pkg/witness"
 	"github.com/sigstore/sigstore/pkg/cryptoutils"
 	"github.com/sigstore/sigstore/pkg/signature"
@@ -91,12 +89,12 @@ func dial(rpcServer string) (*grpc.ClientConn, error) {
 }
 
 type API struct {
-	tesseraStorage *mysql.Storage
-	logID          int64
-	logRanges      sharding.LogRanges
-	pubkey         string // PEM encoded public key
-	pubkeyHash     string // SHA256 hash of DER-encoded public key
-	signer         signature.Signer
+	tesseraClient *tessera.TesseraClient
+	logID         int64
+	logRanges     sharding.LogRanges
+	pubkey        string // PEM encoded public key
+	pubkeyHash    string // SHA256 hash of DER-encoded public key
+	signer        signature.Signer
 	// stops checkpoint publishing
 	checkpointPublishCancel context.CancelFunc
 	// Publishes notifications when new entries are added to the log. May be
@@ -118,28 +116,9 @@ func NewAPI(treeID uint) (*API, error) {
 		log.Logger.Info("No tree ID specified, attempting to create a new tree")
 		tid = 42
 	}
-	db, err := createDatabase(ctx, "root:root@tcp(127.0.0.1:3307)/test_tessera", 3*time.Minute, 64, 64) // FIXME: configurable DB
-	if err != nil {
-		return nil, err
-	}
-	// Rekor signs the checkpoints itself, no need to create a separate checkpoint signer for Tessera
-	withNoopCP := func(o *tessera.StorageOptions) {
-		o.NewCP = func(size uint64, hash []byte) ([]byte, error) {
-			cp := f_log.Checkpoint{
-				Origin: viper.GetString("rekor_server.hostname"),
-				Size:   size,
-				Hash:   hash,
-			}.Marshal()
-			return cp, nil
-		}
-		o.ParseCP = func(raw []byte) (*f_log.Checkpoint, error) {
-			cp := &f_log.Checkpoint{}
-			_, err := cp.Unmarshal(raw)
-			return cp, err
-		}
-	}
-	tesseraStorage, err := mysql.New(ctx, db, withNoopCP)
-	if err != nil {
+	treeName := "test_tessera"
+	cfg := tessera.NewDBConfig("root:root@tcp(127.0.0.1:3307)", 3*time.Minute, 64, 64) // FIXME: configurable DB
+	if err := cfg.Init(ctx, treeName); err != nil {
 		return nil, err
 	}
 	log.Logger.Infof("Starting Rekor server with active tree %v", tid)
@@ -174,11 +153,12 @@ func NewAPI(treeID uint) (*API, error) {
 		log.ContextLogger(ctx).Infof("Initialized new entry event publisher: %s", p)
 	}
 
+	tesseraClient := tessera.NewTesseraClient(&cfg)
 	return &API{
 		// Transparency Log Stuff
-		tesseraStorage: tesseraStorage,
-		logID:          tid,
-		logRanges:      ranges,
+		tesseraClient: &tesseraClient,
+		logID:         tid,
+		logRanges:     ranges,
 		// Signing/verifying fields
 		pubkey:     string(pubkey),
 		pubkeyHash: hex.EncodeToString(pubkeyHashBytes[:]),
@@ -203,7 +183,7 @@ func ConfigureAPI(treeID uint) {
 
 	if viper.GetBool("enable_stable_checkpoint") {
 		redisClient = NewRedisClient()
-		checkpointPublisher := witness.NewCheckpointPublisher(context.Background(), api.tesseraStorage, api.logRanges.ActiveTreeID(),
+		checkpointPublisher := witness.NewCheckpointPublisher(context.Background(), api.tesseraClient, api.logRanges.ActiveTreeID(),
 			viper.GetString("rekor_server.hostname"), api.signer, redisClient, viper.GetUint("publish_frequency"), CheckpointPublishCount)
 
 		// create context to cancel goroutine on server shutdown

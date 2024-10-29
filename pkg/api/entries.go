@@ -99,9 +99,14 @@ func createLogEntry(params entries.CreateLogEntryParams) (models.LogEntry, middl
 	}
 
 	tesseraEntry := tessera.NewEntry(leaf)
-	idx, err := api.tesseraStorage.Add(params.HTTPRequest.Context(), tesseraEntry)()
+	tesseraStorage, err := api.tesseraClient.Connect(ctx, "test_tessera") // FIXME: tree name
 	if err != nil {
-		return nil, handleRekorAPIError(params, http.StatusInternalServerError, err, trillianUnexpectedResult)
+		return nil, handleRekorAPIError(params, http.StatusInternalServerError, err, trillianUnexpectedResult) // FIXME: trillian error
+	}
+
+	idx, err := tesseraStorage.Add(params.HTTPRequest.Context(), tesseraEntry)()
+	if err != nil {
+		return nil, handleRekorAPIError(params, http.StatusInternalServerError, err, trillianUnexpectedResult) // FIXME: trillian error
 	}
 
 	// We made it this far, that means the entry was successfully added.
@@ -118,7 +123,7 @@ func createLogEntry(params entries.CreateLogEntryParams) (models.LogEntry, middl
 	if err != nil {
 		return nil, handleRekorAPIError(params, http.StatusInternalServerError, err, sthGenerateError)
 	}
-	checkpointBody, err := api.tesseraStorage.ReadCheckpoint(context.TODO())
+	checkpointBody, err := tesseraStorage.ReadCheckpoint(context.TODO())
 	if err != nil {
 		return nil, handleRekorAPIError(params, http.StatusInternalServerError, err, err.Error())
 	}
@@ -141,7 +146,7 @@ func createLogEntry(params entries.CreateLogEntryParams) (models.LogEntry, middl
 		if err != nil {
 			return nil, err
 		}
-		return api.tesseraStorage.ReadTile(ctx, level, index, width)
+		return tesseraStorage.ReadTile(ctx, level, index, width)
 	}
 	proofBuilder, err := client.NewProofBuilder(ctx, checkpoint, tileOnlyFetcher)
 	if err != nil {
@@ -266,7 +271,11 @@ var ErrNotFound = errors.New("grpc returned 0 leaves with success code")
 func retrieveLogEntryByIndex(ctx context.Context, logIndex int) (models.LogEntry, error) {
 	log.ContextLogger(ctx).Infof("Retrieving log entry by index %d", logIndex)
 
-	entryBundle, err := api.tesseraStorage.ReadEntryBundle(ctx, uint64(logIndex/256))
+	tesseraStorage, err := api.tesseraClient.Connect(ctx, "test_tessera") // FIXME: tree name
+	if err != nil {
+		return models.LogEntry{}, err
+	}
+	entryBundle, err := tesseraStorage.ReadEntryBundle(ctx, uint64(logIndex/256))
 	if err != nil {
 		return models.LogEntry{}, err
 	}
@@ -296,7 +305,7 @@ func retrieveLogEntryByIndex(ctx context.Context, logIndex int) (models.LogEntry
 		return models.LogEntry{}, err
 	}
 
-	checkpointBody, err := api.tesseraStorage.ReadCheckpoint(context.TODO())
+	checkpointBody, err := tesseraStorage.ReadCheckpoint(context.TODO())
 	if err != nil {
 		return models.LogEntry{}, err
 	}
@@ -312,13 +321,13 @@ func retrieveLogEntryByIndex(ctx context.Context, logIndex int) (models.LogEntry
 	if err != nil {
 		return models.LogEntry{}, err
 	}
-	tileOnlyFetcher := func(ctx context.Context, path string) ([]byte, error) {
+	tileOnlyFetcher := func(ctx context.Context, path string) ([]byte, error) { // FIXME: move to common function
 		pathParts := strings.SplitN(path, "/", 3)
 		level, index, width, err := layout.ParseTileLevelIndexWidth(pathParts[1], pathParts[2])
 		if err != nil {
 			return nil, err
 		}
-		return api.tesseraStorage.ReadTile(ctx, level, index, width)
+		return tesseraStorage.ReadTile(ctx, level, index, width)
 	}
 	proofBuilder, err := client.NewProofBuilder(ctx, checkpoint, tileOnlyFetcher)
 	if err != nil {

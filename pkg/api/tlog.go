@@ -38,7 +38,12 @@ import (
 
 // GetLogInfoHandler returns the current size of the tree and the STH
 func GetLogInfoHandler(params tlog.GetLogInfoParams) middleware.Responder {
-	checkpointBody, err := api.tesseraStorage.ReadCheckpoint(context.TODO())
+	ctx := params.HTTPRequest.Context()
+	tesseraStorage, err := api.tesseraClient.Connect(ctx, "test_tessera") // FIXME: tree name
+	if err != nil {
+		return handleRekorAPIError(params, http.StatusInternalServerError, fmt.Errorf("tessera connection error: %w", err), "")
+	}
+	checkpointBody, err := tesseraStorage.ReadCheckpoint(context.TODO())
 	if err != nil {
 		return handleRekorAPIError(params, http.StatusInternalServerError, fmt.Errorf("checkpoint error: %w", err), "")
 	}
@@ -79,7 +84,12 @@ func GetLogProofHandler(params tlog.GetLogProofParams) middleware.Responder {
 	if *params.FirstSize > params.LastSize {
 		return handleRekorAPIError(params, http.StatusBadRequest, nil, fmt.Sprintf(firstSizeLessThanLastSize, *params.FirstSize, params.LastSize))
 	}
-	checkpointBody, err := api.tesseraStorage.ReadCheckpoint(context.TODO())
+	ctx := params.HTTPRequest.Context()
+	tesseraStorage, err := api.tesseraClient.Connect(ctx, "test_tessera") // FIXME: tree name
+	if err != nil {
+		return handleRekorAPIError(params, http.StatusInternalServerError, fmt.Errorf("tessera connection error: %w", err), "")
+	}
+	checkpointBody, err := tesseraStorage.ReadCheckpoint(context.TODO())
 	if err != nil {
 		return handleRekorAPIError(params, http.StatusInternalServerError, err, err.Error())
 	}
@@ -97,7 +107,7 @@ func GetLogProofHandler(params tlog.GetLogProofParams) middleware.Responder {
 		if err != nil {
 			return nil, err
 		}
-		return api.tesseraStorage.ReadTile(ctx, level, index, width)
+		return tesseraStorage.ReadTile(ctx, level, index, width)
 	}
 	proofBuilder, err := client.NewProofBuilder(context.TODO(), checkpoint, tileOnlyFetcher)
 	if err != nil {
