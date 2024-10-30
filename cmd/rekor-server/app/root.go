@@ -81,6 +81,13 @@ func init() {
 
 	rootCmd.PersistentFlags().String("tessera.sharding_config", "", "path to config file for inactive shards, in JSON or YAML")
 	rootCmd.PersistentFlags().Uint("tessera.tlog_id", 0, "ID of the active tree")
+	rootCmd.PersistentFlags().String("tessera.mysql.address", "127.0.0.1", "Tessera MySQL server address")
+	rootCmd.PersistentFlags().Uint16("tessera.mysql.port", 3306, "Tessera MySQL server port")
+	rootCmd.PersistentFlags().String("tessera.mysql.user", "", "Tessera MySQL server username")
+	rootCmd.PersistentFlags().String("tessera.mysql.password", "", "Tessera MySQL server password")
+	rootCmd.PersistentFlags().Duration("tessera.mysql.conn_max_lifetime", 0*time.Second, "Tessera MySQL maximum connection lifetime")
+	rootCmd.PersistentFlags().Int("tessera.mysql.max_open_connections", 0, "Tessera MySQL maximum open connections")
+	rootCmd.PersistentFlags().Int("tessera.mysql.max_idle_connections", 0, "Tessera MySQL maximum idle connections")
 
 	rootCmd.PersistentFlags().Bool("enable_stable_checkpoint", true, "publish stable checkpoints to Redis. When disabled, gossiping may not be possible if the log checkpoint updates too frequently")
 	rootCmd.PersistentFlags().Uint("publish_frequency", 5, "how often to publish a new checkpoint, in minutes")

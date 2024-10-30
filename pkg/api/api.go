@@ -28,7 +28,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"github.com/redis/go-redis/v9"
 	"github.com/spf13/viper"
@@ -113,6 +112,18 @@ func newTreeID() (int64, error) {
 	return id.Int64() + 1, nil
 }
 
+func mysqlDSN() string {
+	dsn := fmt.Sprintf("tcp(%s:%d)", viper.GetString("tessera.mysql.address"), viper.GetUint16("tessera.mysql.port"))
+	user, pass := viper.GetString("tessera.mysql.user"), viper.GetString("tessera.mysql.password")
+	if pass != "" {
+		pass = fmt.Sprintf(":%s", pass)
+	}
+	if user != "" {
+		dsn = fmt.Sprintf("%s%s@%s", user, pass, dsn)
+	}
+	return dsn
+}
+
 func NewAPI(treeID uint) (*API, error) {
 	ctx := context.Background()
 
@@ -126,7 +137,9 @@ func NewAPI(treeID uint) (*API, error) {
 		}
 
 	}
-	cfg := tessera.NewDBConfig("root:zaphod@tcp(127.0.0.1:3306)", 3*time.Minute, 64, 64) // FIXME: configurable DB
+	dsn := mysqlDSN()
+	lifetime, maxOpen, maxIdle := viper.GetDuration("tessera.mysql.conn_max_lifetime"), viper.GetInt("tessera.mysql.max_open_connections"), viper.GetInt("tessera.mysql.max_idle_connections")
+	cfg := tessera.NewDBConfig(dsn, lifetime, maxOpen, maxIdle)
 	if err := cfg.Init(ctx, tid); err != nil {
 		return nil, fmt.Errorf("initializing database for tree %d: %w", tid, err)
 	}
