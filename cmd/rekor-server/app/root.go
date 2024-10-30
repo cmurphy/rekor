@@ -79,10 +79,8 @@ func init() {
 	rootCmd.PersistentFlags().String("gcp_cloud_profiling.project_id", "", "GCP project ID")
 	rootCmd.PersistentFlags().Bool("gcp_cloud_profiling.enable_oc_telemetry", false, "enable Profiler spans in Cloud Tracing & Cloud Monitoring")
 
-	rootCmd.PersistentFlags().String("trillian_log_server.address", "127.0.0.1", "Trillian log server address")
-	rootCmd.PersistentFlags().Uint16("trillian_log_server.port", 8090, "Trillian log server port")
-	rootCmd.PersistentFlags().Uint("trillian_log_server.tlog_id", 0, "Trillian tree id")
-	rootCmd.PersistentFlags().String("trillian_log_server.sharding_config", "", "path to config file for inactive shards, in JSON or YAML")
+	rootCmd.PersistentFlags().String("tessera.sharding_config", "", "path to config file for inactive shards, in JSON or YAML")
+	rootCmd.PersistentFlags().Uint("tessera.tlog_id", 0, "ID of the active tree")
 
 	rootCmd.PersistentFlags().Bool("enable_stable_checkpoint", true, "publish stable checkpoints to Redis. When disabled, gossiping may not be possible if the log checkpoint updates too frequently")
 	rootCmd.PersistentFlags().Uint("publish_frequency", 5, "how often to publish a new checkpoint, in minutes")
@@ -114,8 +112,6 @@ Memory and file-based signers should only be used for testing.`)
 	rootCmd.PersistentFlags().String("redis_server.password", "", "Redis server password")
 	rootCmd.PersistentFlags().Bool("redis_server.enable-tls", false, "Whether to enable TLS verification when connecting to Redis endpoint")
 	rootCmd.PersistentFlags().Bool("redis_server.insecure-skip-verify", false, "Whether to skip TLS verification when connecting to Redis endpoint, only applicable when 'redis_server.enable-tls' is set to 'true'")
-	rootCmd.PersistentFlags().String("trillian_log_server.tls_ca_cert", "", "Certificate file to use for secure connections with Trillian server")
-	rootCmd.PersistentFlags().Bool("trillian_log_server.tls", false, "Use TLS when connecting to Trillian Server")
 
 	rootCmd.PersistentFlags().StringSlice("enabled_api_endpoints", operationIDs, "list of API endpoints to enable using operationId from openapi.yaml")
 

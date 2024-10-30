@@ -14,6 +14,11 @@ import (
 	"github.com/transparency-dev/trillian-tessera/storage/mysql"
 )
 
+const (
+	prefix             = "tessera"
+	treeIDHexStringLen = 16
+)
+
 type dbConfig struct {
 	baseURI           string
 	dbConnMaxLifetime time.Duration
@@ -30,11 +35,15 @@ func NewDBConfig(baseURI string, dbConnMaxLifetime time.Duration, dbMaxOpenConns
 	}
 }
 
-func (d *dbConfig) Connect(dbName string) (*sql.DB, error) {
-	uri := d.baseURI + "/" + dbName
+func (d *dbConfig) Connect(treeID int64) (*sql.DB, error) {
+	dbName, err := dbName(treeID)
+	if err != nil {
+		return nil, fmt.Errorf("getting database name: %w", err)
+	}
+	uri := fmt.Sprintf("%s/%s", d.baseURI, dbName)
 	db, err := sql.Open("mysql", uri)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("connecting to database server: %w", err)
 	}
 	db.SetConnMaxLifetime(d.dbConnMaxLifetime)
 	db.SetMaxOpenConns(d.dbMaxOpenConns)
@@ -43,12 +52,28 @@ func (d *dbConfig) Connect(dbName string) (*sql.DB, error) {
 	return db, nil
 }
 
-func (d *dbConfig) Init(ctx context.Context, dbName string) error {
+func (d *dbConfig) Init(ctx context.Context, treeID int64) error {
 	log.Logger.Infof("Initializing database schema")
-	uri := d.baseURI + "/" + dbName + "?multiStatements=true"
-	db, err := sql.Open("mysql", uri)
+	dbName, err := dbName(treeID)
 	if err != nil {
-		return fmt.Errorf("Failed to connect to DB: %w", err)
+		return fmt.Errorf("getting database name: %w", err)
+	}
+	serverURI := fmt.Sprintf("%s/", d.baseURI)
+	serverConn, err := sql.Open("mysql", serverURI)
+	if err != nil {
+		return fmt.Errorf("connecting to database server: %w", err)
+	}
+	_, err = serverConn.ExecContext(ctx, "CREATE DATABASE IF NOT EXISTS "+dbName)
+	if err != nil {
+		return fmt.Errorf("initializing database: %w", err)
+	}
+	if serverConn.Close(); err != nil {
+		return fmt.Errorf("failed to close db: %w", err)
+	}
+	dbURI := fmt.Sprintf("%s/%s?multiStatements=true", d.baseURI, dbName)
+	db, err := sql.Open("mysql", dbURI)
+	if err != nil {
+		return fmt.Errorf("connecting to database instance: %w", err)
 	}
 	defer func() {
 		if err := db.Close(); err != nil {
@@ -69,6 +94,14 @@ func (d *dbConfig) Init(ctx context.Context, dbName string) error {
 	return nil
 }
 
+func dbName(treeID int64) (string, error) {
+	name := fmt.Sprintf("%s_%x", prefix, treeID)
+	if len(name) > treeIDHexStringLen+len(prefix)+1 {
+		return "", fmt.Errorf("invalid tree ID: %d", treeID)
+	}
+	return name, nil
+}
+
 type TesseraClient struct {
 	dbConfig *dbConfig
 }
@@ -77,7 +110,7 @@ func NewTesseraClient(dbConfig *dbConfig) TesseraClient {
 	return TesseraClient{dbConfig}
 }
 
-func (t *TesseraClient) Connect(ctx context.Context, treeID string) (*mysql.Storage, error) {
+func (t *TesseraClient) Connect(ctx context.Context, treeID int64) (*mysql.Storage, error) {
 	db, err := t.dbConfig.Connect(treeID)
 	if err != nil {
 		return nil, fmt.Errorf("database connection: %w", err)

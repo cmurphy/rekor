@@ -126,7 +126,7 @@ var serveCmd = &cobra.Command{
 		server.Port = int(viper.GetUint("port"))
 		server.EnabledListeners = []string{"http"}
 
-		treeID := viper.GetUint("trillian_log_server.tlog_id")
+		treeID := viper.GetUint("tessera.tlog_id")
 
 		api.ConfigureAPI(treeID)
 		server.ConfigureAPI()

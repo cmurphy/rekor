@@ -99,7 +99,7 @@ func createLogEntry(params entries.CreateLogEntryParams) (models.LogEntry, middl
 	}
 
 	tesseraEntry := tessera.NewEntry(leaf)
-	tesseraStorage, err := api.tesseraClient.Connect(ctx, "test_tessera") // FIXME: tree name
+	tesseraStorage, err := api.tesseraClient.Connect(ctx, api.logID)
 	if err != nil {
 		return nil, handleRekorAPIError(params, http.StatusInternalServerError, err, trillianUnexpectedResult) // FIXME: trillian error
 	}
@@ -271,11 +271,13 @@ var ErrNotFound = errors.New("grpc returned 0 leaves with success code")
 func retrieveLogEntryByIndex(ctx context.Context, logIndex int) (models.LogEntry, error) {
 	log.ContextLogger(ctx).Infof("Retrieving log entry by index %d", logIndex)
 
-	tesseraStorage, err := api.tesseraClient.Connect(ctx, "test_tessera") // FIXME: tree name
+	tid, resolvedIndex := api.logRanges.ResolveVirtualIndex(logIndex)
+
+	tesseraStorage, err := api.tesseraClient.Connect(ctx, tid)
 	if err != nil {
 		return models.LogEntry{}, err
 	}
-	entryBundle, err := tesseraStorage.ReadEntryBundle(ctx, uint64(logIndex/256))
+	entryBundle, err := tesseraStorage.ReadEntryBundle(ctx, uint64(resolvedIndex/256))
 	if err != nil {
 		return models.LogEntry{}, err
 	}
@@ -286,10 +288,10 @@ func retrieveLogEntryByIndex(ctx context.Context, logIndex int) (models.LogEntry
 	if err := bundle.UnmarshalText(entryBundle); err != nil {
 		return models.LogEntry{}, err
 	}
-	if logIndex%256 >= len(bundle.Entries) {
+	if resolvedIndex%256 >= int64(len(bundle.Entries)) {
 		return models.LogEntry{}, ErrNotFound
 	}
-	entry := bundle.Entries[logIndex%256]
+	entry := bundle.Entries[resolvedIndex%256]
 
 	tesseraEntry := tessera.NewEntry(entry)
 
@@ -333,7 +335,7 @@ func retrieveLogEntryByIndex(ctx context.Context, logIndex int) (models.LogEntry
 	if err != nil {
 		return models.LogEntry{}, err
 	}
-	proof, err := proofBuilder.InclusionProof(ctx, uint64(logIndex))
+	proof, err := proofBuilder.InclusionProof(ctx, uint64(resolvedIndex))
 	if err != nil {
 		return models.LogEntry{}, err
 	}

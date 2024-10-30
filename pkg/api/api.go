@@ -17,11 +17,14 @@ package api
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/hex"
 	"fmt"
+	"math"
+	"math/big"
 	"os"
 	"path/filepath"
 	"strings"
@@ -102,25 +105,39 @@ type API struct {
 	newEntryPublisher pubsub.Publisher
 }
 
+func newTreeID() (int64, error) {
+	id, err := rand.Int(rand.Reader, big.NewInt(math.MaxInt64))
+	if err != nil {
+		return 0, err
+	}
+	return id.Int64() + 1, nil
+}
+
 func NewAPI(treeID uint) (*API, error) {
 	ctx := context.Background()
-
-	shardingConfig := viper.GetString("trillian_log_server.sharding_config")
-	ranges, err := sharding.NewLogRanges(ctx, nil, shardingConfig, treeID)
-	if err != nil {
-		return nil, fmt.Errorf("unable get sharding details from sharding config: %w", err)
-	}
 
 	tid := int64(treeID)
 	if tid == 0 {
 		log.Logger.Info("No tree ID specified, attempting to create a new tree")
-		tid = 42
+		var err error
+		tid, err = newTreeID()
+		if err != nil {
+			return nil, fmt.Errorf("creating tree ID: %w", err)
+		}
+
 	}
-	treeName := "test_tessera"
-	cfg := tessera.NewDBConfig("root:root@tcp(127.0.0.1:3307)", 3*time.Minute, 64, 64) // FIXME: configurable DB
-	if err := cfg.Init(ctx, treeName); err != nil {
-		return nil, err
+	cfg := tessera.NewDBConfig("root:zaphod@tcp(127.0.0.1:3306)", 3*time.Minute, 64, 64) // FIXME: configurable DB
+	if err := cfg.Init(ctx, tid); err != nil {
+		return nil, fmt.Errorf("initializing database for tree %d: %w", tid, err)
 	}
+	tesseraClient := tessera.NewTesseraClient(&cfg)
+
+	shardingConfig := viper.GetString("tessera.sharding_config")
+	ranges, err := sharding.NewLogRanges(ctx, tesseraClient, shardingConfig, treeID)
+	if err != nil {
+		return nil, fmt.Errorf("unable get sharding details from sharding config: %w", err)
+	}
+
 	log.Logger.Infof("Starting Rekor server with active tree %v", tid)
 	ranges.SetActive(tid)
 
@@ -153,7 +170,6 @@ func NewAPI(treeID uint) (*API, error) {
 		log.ContextLogger(ctx).Infof("Initialized new entry event publisher: %s", p)
 	}
 
-	tesseraClient := tessera.NewTesseraClient(&cfg)
 	return &API{
 		// Transparency Log Stuff
 		tesseraClient: &tesseraClient,
