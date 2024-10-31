@@ -3,8 +3,8 @@ package tessera
 import (
 	"context"
 	"database/sql"
+	_ "embed"
 	"fmt"
-	"os"
 	"strings"
 	"time"
 
@@ -21,6 +21,9 @@ const (
 	prefix             = "tessera"
 	treeIDHexStringLen = 16
 )
+
+//go:embed schema.sql
+var schema string
 
 type dbConfig struct {
 	baseURI           string
@@ -84,12 +87,7 @@ func (d *dbConfig) Init(ctx context.Context, treeID int64) error {
 		}
 	}()
 
-	initSchemaPath := "/home/colleenmurphy/dev/trillian-tessera/storage/mysql/schema.sql" // FIXME: copy into rekor source
-	rawSchema, err := os.ReadFile(initSchemaPath)
-	if err != nil {
-		return fmt.Errorf("Failed to read init schema file %q: %w", initSchemaPath, err)
-	}
-	if _, err := db.ExecContext(ctx, string(rawSchema)); err != nil {
+	if _, err := db.ExecContext(ctx, schema); err != nil {
 		return fmt.Errorf("Failed to execute init database schema: %w", err)
 	}
 
