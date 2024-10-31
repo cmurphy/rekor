@@ -98,12 +98,12 @@ func createLogEntry(params entries.CreateLogEntryParams) (models.LogEntry, middl
 	tesseraEntry := tessera.NewEntry(leaf)
 	tesseraStorage, err := api.tesseraClient.Connect(ctx, api.logID)
 	if err != nil {
-		return nil, handleRekorAPIError(params, http.StatusInternalServerError, err, trillianUnexpectedResult) // FIXME: trillian error
+		return nil, handleRekorAPIError(params, http.StatusInternalServerError, err, tesseraCommunicationError)
 	}
 
 	idx, err := tesseraStorage.Add(params.HTTPRequest.Context(), tesseraEntry)()
 	if err != nil {
-		return nil, handleRekorAPIError(params, http.StatusInternalServerError, err, trillianUnexpectedResult) // FIXME: trillian error
+		return nil, handleRekorAPIError(params, http.StatusInternalServerError, err, tesseraUnexpectedResult)
 	}
 
 	// We made it this far, that means the entry was successfully added.

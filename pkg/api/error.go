@@ -32,8 +32,8 @@ import (
 )
 
 const (
-	trillianCommunicationError     = "unexpected error communicating with transparency log"
-	trillianUnexpectedResult       = "unexpected result from transparency log"
+	tesseraCommunicationError      = "unexpected error communicating with transparency log"
+	tesseraUnexpectedResult        = "unexpected result from transparency log"
 	validationError                = "error processing entry: %v"
 	failedToGenerateCanonicalEntry = "error generating canonicalized entry"
 	entryAlreadyExists             = "an equivalent entry already exists in the transparency log with UUID %v"
