@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strings"
 	"time"
 
 	"github.com/cyberphone/json-canonicalization/go/src/webpki.org/jsoncanonicalizer"
@@ -31,11 +30,8 @@ import (
 	"github.com/go-openapi/strfmt"
 	"github.com/go-openapi/swag"
 	"github.com/spf13/viper"
-	logFormat "github.com/transparency-dev/formats/log"
 	tessera "github.com/transparency-dev/trillian-tessera"
 	tesseraapi "github.com/transparency-dev/trillian-tessera/api"
-	"github.com/transparency-dev/trillian-tessera/api/layout"
-	"github.com/transparency-dev/trillian-tessera/client"
 
 	"github.com/sigstore/rekor/pkg/events"
 	"github.com/sigstore/rekor/pkg/events/newentry"
@@ -43,6 +39,7 @@ import (
 	"github.com/sigstore/rekor/pkg/generated/restapi/operations/entries"
 	"github.com/sigstore/rekor/pkg/log"
 	"github.com/sigstore/rekor/pkg/pubsub"
+	rekortessera "github.com/sigstore/rekor/pkg/tessera"
 	"github.com/sigstore/rekor/pkg/tle"
 	"github.com/sigstore/rekor/pkg/types"
 	"github.com/sigstore/rekor/pkg/util"
@@ -123,15 +120,8 @@ func createLogEntry(params entries.CreateLogEntryParams) (models.LogEntry, middl
 	if err != nil {
 		return nil, handleRekorAPIError(params, http.StatusInternalServerError, err, sthGenerateError)
 	}
-	checkpointBody, err := tesseraStorage.ReadCheckpoint(context.TODO())
-	if err != nil {
-		return nil, handleRekorAPIError(params, http.StatusInternalServerError, err, err.Error())
-	}
-	if checkpointBody == nil {
-		return nil, handleRekorAPIError(params, http.StatusNotFound, err, "")
-	}
-	checkpoint := logFormat.Checkpoint{}
-	_, err = checkpoint.Unmarshal(checkpointBody)
+
+	checkpoint, err := rekortessera.GetLatestCheckpoint(ctx, tesseraStorage)
 	if err != nil {
 		return nil, handleRekorAPIError(params, http.StatusInternalServerError, err, err.Error())
 	}
@@ -140,15 +130,7 @@ func createLogEntry(params entries.CreateLogEntryParams) (models.LogEntry, middl
 		return nil, handleRekorAPIError(params, http.StatusInternalServerError, err, sthGenerateError)
 	}
 
-	tileOnlyFetcher := func(ctx context.Context, path string) ([]byte, error) {
-		pathParts := strings.SplitN(path, "/", 3)
-		level, index, width, err := layout.ParseTileLevelIndexWidth(pathParts[1], pathParts[2])
-		if err != nil {
-			return nil, err
-		}
-		return tesseraStorage.ReadTile(ctx, level, index, width)
-	}
-	proofBuilder, err := client.NewProofBuilder(ctx, checkpoint, tileOnlyFetcher)
+	proofBuilder, err := rekortessera.ProofBuilder(ctx, checkpoint, tesseraStorage)
 	if err != nil {
 		return nil, handleRekorAPIError(params, http.StatusInternalServerError, err, sthGenerateError)
 	}
@@ -307,33 +289,17 @@ func retrieveLogEntryByIndex(ctx context.Context, logIndex int) (models.LogEntry
 		return models.LogEntry{}, err
 	}
 
-	checkpointBody, err := tesseraStorage.ReadCheckpoint(context.TODO())
+	checkpoint, err := rekortessera.GetLatestCheckpoint(ctx, tesseraStorage)
 	if err != nil {
-		return models.LogEntry{}, err
-	}
-	if checkpointBody == nil {
-		return models.LogEntry{}, ErrNotFound
-	}
-	checkpoint := logFormat.Checkpoint{}
-	_, err = checkpoint.Unmarshal(checkpointBody)
-	if err != nil {
-		return models.LogEntry{}, err
+		return models.LogEntry{}, fmt.Errorf("reading checkpoint: %w", err)
 	}
 	scBytes, err := util.CreateAndSignCheckpoint(ctx, viper.GetString("rekor_server.hostname"), api.logID, checkpoint.Size, checkpoint.Hash, api.signer)
 	if err != nil {
 		return models.LogEntry{}, err
 	}
-	tileOnlyFetcher := func(ctx context.Context, path string) ([]byte, error) { // FIXME: move to common function
-		pathParts := strings.SplitN(path, "/", 3)
-		level, index, width, err := layout.ParseTileLevelIndexWidth(pathParts[1], pathParts[2])
-		if err != nil {
-			return nil, err
-		}
-		return tesseraStorage.ReadTile(ctx, level, index, width)
-	}
-	proofBuilder, err := client.NewProofBuilder(ctx, checkpoint, tileOnlyFetcher)
+	proofBuilder, err := rekortessera.ProofBuilder(ctx, checkpoint, tesseraStorage)
 	if err != nil {
-		return models.LogEntry{}, err
+		return models.LogEntry{}, fmt.Errorf("getting proof builder: %w", err)
 	}
 	proof, err := proofBuilder.InclusionProof(ctx, uint64(resolvedIndex))
 	if err != nil {

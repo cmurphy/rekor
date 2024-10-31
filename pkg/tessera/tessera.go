@@ -5,12 +5,15 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/sigstore/rekor/pkg/log"
 	"github.com/spf13/viper"
-	f_log "github.com/transparency-dev/formats/log"
+	logformat "github.com/transparency-dev/formats/log"
 	tessera "github.com/transparency-dev/trillian-tessera"
+	"github.com/transparency-dev/trillian-tessera/api/layout"
+	"github.com/transparency-dev/trillian-tessera/client"
 	"github.com/transparency-dev/trillian-tessera/storage/mysql"
 )
 
@@ -118,15 +121,15 @@ func (t *TesseraClient) Connect(ctx context.Context, treeID int64) (*mysql.Stora
 	// Rekor signs the checkpoints itself, no need to create a separate checkpoint signer for Tessera
 	withNoopCP := func(o *tessera.StorageOptions) {
 		o.NewCP = func(size uint64, hash []byte) ([]byte, error) {
-			cp := f_log.Checkpoint{
+			cp := logformat.Checkpoint{
 				Origin: viper.GetString("rekor_server.hostname"),
 				Size:   size,
 				Hash:   hash,
 			}.Marshal()
 			return cp, nil
 		}
-		o.ParseCP = func(raw []byte) (*f_log.Checkpoint, error) {
-			cp := &f_log.Checkpoint{}
+		o.ParseCP = func(raw []byte) (*logformat.Checkpoint, error) {
+			cp := &logformat.Checkpoint{}
 			_, err := cp.Unmarshal(raw)
 			return cp, err
 		}
@@ -136,4 +139,36 @@ func (t *TesseraClient) Connect(ctx context.Context, treeID int64) (*mysql.Stora
 		return nil, fmt.Errorf("tessera client connection: %w", err)
 	}
 	return storage, nil
+}
+
+func ProofBuilder(ctx context.Context, checkpoint logformat.Checkpoint, tesseraStorage *mysql.Storage) (*client.ProofBuilder, error) {
+	tileOnlyFetcher := func(ctx context.Context, path string) ([]byte, error) {
+		pathParts := strings.SplitN(path, "/", 3)
+		level, index, width, err := layout.ParseTileLevelIndexWidth(pathParts[1], pathParts[2])
+		if err != nil {
+			return nil, err
+		}
+		return tesseraStorage.ReadTile(ctx, level, index, width)
+	}
+	proofBuilder, err := client.NewProofBuilder(ctx, checkpoint, tileOnlyFetcher)
+	if err != nil {
+		return nil, fmt.Errorf("new proof builder: %w", err)
+	}
+	return proofBuilder, nil
+}
+
+func GetLatestCheckpoint(ctx context.Context, tesseraStorage *mysql.Storage) (logformat.Checkpoint, error) {
+	checkpointBody, err := tesseraStorage.ReadCheckpoint(ctx)
+	if err != nil {
+		return logformat.Checkpoint{}, err
+	}
+	if checkpointBody == nil {
+		return logformat.Checkpoint{}, fmt.Errorf("checkpoint not found")
+	}
+	checkpoint := logformat.Checkpoint{}
+	_, err = checkpoint.Unmarshal(checkpointBody)
+	if err != nil {
+		return logformat.Checkpoint{}, err
+	}
+	return checkpoint, nil
 }

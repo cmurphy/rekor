@@ -27,7 +27,6 @@ import (
 
 	"github.com/sigstore/rekor/pkg/log"
 	"github.com/sigstore/rekor/pkg/tessera"
-	logformat "github.com/transparency-dev/formats/log"
 	"sigs.k8s.io/yaml"
 )
 
@@ -100,14 +99,9 @@ func updateRange(ctx context.Context, logClient tessera.TesseraClient, r LogRang
 		if err != nil {
 			return LogRange{}, fmt.Errorf("tessera connection error: %w", err)
 		}
-		checkpointBody, err := tesseraStorage.ReadCheckpoint(ctx)
+		checkpoint, err := tessera.GetLatestCheckpoint(ctx, tesseraStorage)
 		if err != nil {
-			return LogRange{}, fmt.Errorf("reading checkpoint: %w", err)
-		}
-		var checkpoint logformat.Checkpoint
-		_, err = checkpoint.Unmarshal(checkpointBody)
-		if err != nil {
-			return LogRange{}, fmt.Errorf("unmarshalling checkpoint: %w", err)
+			return LogRange{}, fmt.Errorf("getting latest checkpoint: %w", err)
 		}
 		r.TreeLength = int64(checkpoint.Size)
 	}

@@ -20,16 +20,13 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/http"
-	"strings"
 
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/spf13/viper"
-	logformat "github.com/transparency-dev/formats/log"
-	"github.com/transparency-dev/trillian-tessera/api/layout"
-	"github.com/transparency-dev/trillian-tessera/client"
 
 	"github.com/sigstore/rekor/pkg/generated/models"
 	"github.com/sigstore/rekor/pkg/generated/restapi/operations/tlog"
+	"github.com/sigstore/rekor/pkg/tessera"
 	"github.com/sigstore/rekor/pkg/util"
 )
 
@@ -53,19 +50,11 @@ func GetLogInfoHandler(params tlog.GetLogInfoParams) middleware.Responder {
 		}
 		inactiveShards = append(inactiveShards, is)
 	}
-	checkpointBody, err := tesseraStorage.ReadCheckpoint(context.TODO())
-	if err != nil {
-		return handleRekorAPIError(params, http.StatusInternalServerError, fmt.Errorf("checkpoint error: %w", err), "")
-	}
-	if checkpointBody == nil {
-		return handleRekorAPIError(params, http.StatusNotFound, err, "")
-	}
-	var checkpoint logformat.Checkpoint
-	_, err = checkpoint.Unmarshal(checkpointBody)
-	if err != nil {
-		return handleRekorAPIError(params, http.StatusInternalServerError, err, "")
-	}
 
+	checkpoint, err := tessera.GetLatestCheckpoint(ctx, tesseraStorage)
+	if err != nil {
+		return handleRekorAPIError(params, http.StatusInternalServerError, err, err.Error())
+	}
 	scBytes, err := util.CreateAndSignCheckpoint(params.HTTPRequest.Context(),
 		viper.GetString("rekor_server.hostname"), api.logRanges.ActiveTreeID(), checkpoint.Size, checkpoint.Hash, api.signer)
 	if err != nil {
@@ -99,27 +88,12 @@ func GetLogProofHandler(params tlog.GetLogProofParams) middleware.Responder {
 	if err != nil {
 		return handleRekorAPIError(params, http.StatusInternalServerError, fmt.Errorf("tessera connection error: %w", err), "")
 	}
-	checkpointBody, err := tesseraStorage.ReadCheckpoint(context.TODO())
+
+	checkpoint, err := tessera.GetLatestCheckpoint(ctx, tesseraStorage)
 	if err != nil {
 		return handleRekorAPIError(params, http.StatusInternalServerError, err, err.Error())
 	}
-	if checkpointBody == nil {
-		return handleRekorAPIError(params, http.StatusNotFound, err, "")
-	}
-	checkpoint := logformat.Checkpoint{}
-	_, err = checkpoint.Unmarshal(checkpointBody)
-	if err != nil {
-		return handleRekorAPIError(params, http.StatusInternalServerError, err, err.Error())
-	}
-	tileOnlyFetcher := func(ctx context.Context, path string) ([]byte, error) {
-		pathParts := strings.SplitN(path, "/", 3)
-		level, index, width, err := layout.ParseTileLevelIndexWidth(pathParts[1], pathParts[2])
-		if err != nil {
-			return nil, err
-		}
-		return tesseraStorage.ReadTile(ctx, level, index, width)
-	}
-	proofBuilder, err := client.NewProofBuilder(context.TODO(), checkpoint, tileOnlyFetcher)
+	proofBuilder, err := tessera.ProofBuilder(ctx, checkpoint, tesseraStorage)
 	if err != nil {
 		return handleRekorAPIError(params, http.StatusInternalServerError, err, sthGenerateError)
 	}
@@ -156,14 +130,10 @@ func inactiveShardLogInfo(ctx context.Context, tid int64) (*models.InactiveShard
 	if err != nil {
 		return nil, fmt.Errorf("tessera connection error: %w", err)
 	}
-	checkpointBody, err := tesseraStorage.ReadCheckpoint(ctx)
-	if err != nil || checkpointBody == nil {
-		return nil, fmt.Errorf("reading checkpoint: %w", err)
-	}
-	var checkpoint logformat.Checkpoint
-	_, err = checkpoint.Unmarshal(checkpointBody)
+
+	checkpoint, err := tessera.GetLatestCheckpoint(ctx, tesseraStorage)
 	if err != nil {
-		return nil, fmt.Errorf("unmarshaling checkpoitn")
+		return nil, fmt.Errorf("getting latest checkpoint: %w")
 	}
 	hashString := hex.EncodeToString(checkpoint.Hash)
 	treeSize := int64(checkpoint.Size)

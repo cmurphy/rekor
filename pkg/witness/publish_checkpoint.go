@@ -27,7 +27,6 @@ import (
 	"github.com/sigstore/rekor/pkg/tessera"
 	"github.com/sigstore/rekor/pkg/util"
 	"github.com/sigstore/sigstore/pkg/signature"
-	logformat "github.com/transparency-dev/formats/log"
 )
 
 // CheckpointPublisher is a long-running job to periodically publish signed checkpoints to etc.d
@@ -110,25 +109,14 @@ func (c *CheckpointPublisher) publish(sTreeID string) {
 		log.Logger.Errorf("error connecting to tessera database: %v", err)
 		return
 	}
-	checkpointBody, err := tesseraStorage.ReadCheckpoint(c.ctx)
-	if err != nil || checkpointBody == nil {
+	checkpoint, err := tessera.GetLatestCheckpoint(c.ctx, tesseraStorage)
+	if err != nil {
 		c.reqCounter.With(
 			map[string]string{
 				"shard": sTreeID,
 				"code":  strconv.Itoa(GetCheckpoint),
 			}).Inc()
 		log.Logger.Errorf("error getting latest checkpoint to publish: %v", err)
-		return
-	}
-	var checkpoint logformat.Checkpoint
-	_, err = checkpoint.Unmarshal(checkpointBody)
-	if err != nil {
-		c.reqCounter.With(
-			map[string]string{
-				"shard": sTreeID,
-				"code":  strconv.Itoa(UnmarshalCheckpoint),
-			}).Inc()
-		log.Logger.Errorf("error unmarshalling latest checkpoint to publish: %v", err)
 		return
 	}
 
