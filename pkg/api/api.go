@@ -17,14 +17,11 @@ package api
 
 import (
 	"context"
-	"crypto/rand"
 	"crypto/sha256"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/hex"
 	"fmt"
-	"math"
-	"math/big"
 	"os"
 	"path/filepath"
 	"strings"
@@ -104,14 +101,6 @@ type API struct {
 	newEntryPublisher pubsub.Publisher
 }
 
-func newTreeID() (int64, error) {
-	id, err := rand.Int(rand.Reader, big.NewInt(math.MaxInt64))
-	if err != nil {
-		return 0, err
-	}
-	return id.Int64() + 1, nil
-}
-
 func mysqlDSN() string {
 	dsn := fmt.Sprintf("tcp(%s:%d)", viper.GetString("tessera.mysql.address"), viper.GetUint16("tessera.mysql.port"))
 	user, pass := viper.GetString("tessera.mysql.user"), viper.GetString("tessera.mysql.password")
@@ -127,30 +116,24 @@ func mysqlDSN() string {
 func NewAPI(treeID uint) (*API, error) {
 	ctx := context.Background()
 
-	tid := int64(treeID)
-	if tid == 0 {
-		log.Logger.Info("No tree ID specified, attempting to create a new tree")
-		var err error
-		tid, err = newTreeID()
-		if err != nil {
-			return nil, fmt.Errorf("creating tree ID: %w", err)
-		}
-
-	}
-	dsn := mysqlDSN()
-	lifetime, maxOpen, maxIdle := viper.GetDuration("tessera.mysql.conn_max_lifetime"), viper.GetInt("tessera.mysql.max_open_connections"), viper.GetInt("tessera.mysql.max_idle_connections")
-	cfg := tessera.NewDBConfig(dsn, lifetime, maxOpen, maxIdle)
-	if err := cfg.Init(ctx, tid); err != nil {
-		return nil, fmt.Errorf("initializing database for tree %d: %w", tid, err)
-	}
-	tesseraClient := tessera.NewTesseraClient(&cfg)
-
-	shardingConfig := viper.GetString("tessera.sharding_config")
-	ranges, err := sharding.NewLogRanges(ctx, tesseraClient, shardingConfig, treeID)
+	shardingConfig := viper.GetString("trillian_log_server.sharding_config")
+	ranges, err := sharding.NewLogRanges(ctx, nil, shardingConfig, treeID)
 	if err != nil {
 		return nil, fmt.Errorf("unable get sharding details from sharding config: %w", err)
 	}
 
+	tid := int64(treeID)
+	if tid == 0 {
+		log.Logger.Info("No tree ID specified, attempting to create a new tree")
+		tid = 42
+	}
+	dsn := mysqlDSN()
+	lifetime, maxOpen, maxIdle := viper.GetDuration("tessera.mysql.conn_max_lifetime"), viper.GetInt("tessera.mysql.max_open_connections"), viper.GetInt("tessera.mysql.max_idle_connections")
+	cfg := tessera.NewDBConfig(dsn, lifetime, maxOpen, maxIdle)
+	treeName := "test_tessera"
+	if err := cfg.Init(ctx, treeName); err != nil {
+		return nil, err
+	}
 	log.Logger.Infof("Starting Rekor server with active tree %v", tid)
 	ranges.SetActive(tid)
 
@@ -183,6 +166,7 @@ func NewAPI(treeID uint) (*API, error) {
 		log.ContextLogger(ctx).Infof("Initialized new entry event publisher: %s", p)
 	}
 
+	tesseraClient := tessera.NewTesseraClient(&cfg)
 	return &API{
 		// Transparency Log Stuff
 		tesseraClient: &tesseraClient,

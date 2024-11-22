@@ -99,7 +99,7 @@ func (c *CheckpointPublisher) StartPublisher(ctx context.Context) {
 // publish publishes the latest checkpoint to Redis once
 func (c *CheckpointPublisher) publish(sTreeID string) {
 	// get latest checkpoint
-	tesseraStorage, err := c.tesseraClient.Connect(c.ctx, c.treeID)
+	tesseraStorage, err := c.tesseraClient.Connect(c.ctx, "test_tessera") // FIXME: shard tree name
 	if err != nil {
 		c.reqCounter.With(
 			map[string]string{

@@ -96,7 +96,7 @@ func createLogEntry(params entries.CreateLogEntryParams) (models.LogEntry, middl
 	}
 
 	tesseraEntry := tessera.NewEntry(leaf)
-	tesseraStorage, err := api.tesseraClient.Connect(ctx, api.logID)
+	tesseraStorage, err := api.tesseraClient.Connect(ctx, "test_tessera") // FIXME: tree name
 	if err != nil {
 		return nil, handleRekorAPIError(params, http.StatusInternalServerError, err, tesseraCommunicationError)
 	}
@@ -253,13 +253,11 @@ var ErrNotFound = errors.New("grpc returned 0 leaves with success code")
 func retrieveLogEntryByIndex(ctx context.Context, logIndex int) (models.LogEntry, error) {
 	log.ContextLogger(ctx).Infof("Retrieving log entry by index %d", logIndex)
 
-	tid, resolvedIndex := api.logRanges.ResolveVirtualIndex(logIndex)
-
-	tesseraStorage, err := api.tesseraClient.Connect(ctx, tid)
+	tesseraStorage, err := api.tesseraClient.Connect(ctx, "test_tessera") // FIXME: tree name
 	if err != nil {
 		return models.LogEntry{}, err
 	}
-	entryBundle, err := tesseraStorage.ReadEntryBundle(ctx, uint64(resolvedIndex/256))
+	entryBundle, err := tesseraStorage.ReadEntryBundle(ctx, uint64(logIndex/256))
 	if err != nil {
 		return models.LogEntry{}, err
 	}
@@ -270,10 +268,10 @@ func retrieveLogEntryByIndex(ctx context.Context, logIndex int) (models.LogEntry
 	if err := bundle.UnmarshalText(entryBundle); err != nil {
 		return models.LogEntry{}, err
 	}
-	if resolvedIndex%256 >= int64(len(bundle.Entries)) {
+	if logIndex%256 >= len(bundle.Entries) {
 		return models.LogEntry{}, ErrNotFound
 	}
-	entry := bundle.Entries[resolvedIndex%256]
+	entry := bundle.Entries[logIndex%256]
 
 	tesseraEntry := tessera.NewEntry(entry)
 
@@ -301,7 +299,7 @@ func retrieveLogEntryByIndex(ctx context.Context, logIndex int) (models.LogEntry
 	if err != nil {
 		return models.LogEntry{}, fmt.Errorf("getting proof builder: %w", err)
 	}
-	proof, err := proofBuilder.InclusionProof(ctx, uint64(resolvedIndex))
+	proof, err := proofBuilder.InclusionProof(ctx, uint64(logIndex))
 	if err != nil {
 		return models.LogEntry{}, err
 	}

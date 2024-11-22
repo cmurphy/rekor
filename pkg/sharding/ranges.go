@@ -25,8 +25,9 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/google/trillian"
+	"github.com/google/trillian/types"
 	"github.com/sigstore/rekor/pkg/log"
-	"github.com/sigstore/rekor/pkg/tessera"
 	"sigs.k8s.io/yaml"
 )
 
@@ -44,13 +45,13 @@ type LogRange struct {
 	decodedPublicKey string
 }
 
-func NewLogRanges(ctx context.Context, logClient tessera.TesseraClient, path string, treeID uint) (LogRanges, error) {
+func NewLogRanges(ctx context.Context, logClient trillian.TrillianLogClient, path string, treeID uint) (LogRanges, error) {
 	if path == "" {
 		log.Logger.Info("No config file specified, skipping init of logRange map")
 		return LogRanges{}, nil
 	}
 	if treeID == 0 {
-		return LogRanges{}, errors.New("non-zero tlog_id required when passing in shard config filepath; please set the active tree ID via the `--tessera.tlog_id` flag")
+		return LogRanges{}, errors.New("non-zero tlog_id required when passing in shard config filepath; please set the active tree ID via the `--trillian_log_server.tlog_id` flag")
 	}
 	// otherwise, try to read contents of the sharding config
 	ranges, err := logRangesFromPath(path)
@@ -92,18 +93,18 @@ func logRangesFromPath(path string) (Ranges, error) {
 }
 
 // updateRange fills in any missing information about the range
-func updateRange(ctx context.Context, logClient tessera.TesseraClient, r LogRange) (LogRange, error) {
+func updateRange(ctx context.Context, logClient trillian.TrillianLogClient, r LogRange) (LogRange, error) {
 	// If a tree length wasn't passed in, get it ourselves
 	if r.TreeLength == 0 {
-		tesseraStorage, err := logClient.Connect(ctx, r.TreeID)
+		resp, err := logClient.GetLatestSignedLogRoot(ctx, &trillian.GetLatestSignedLogRootRequest{LogId: r.TreeID})
 		if err != nil {
-			return LogRange{}, fmt.Errorf("tessera connection error: %w", err)
+			return LogRange{}, fmt.Errorf("getting signed log root for tree %d: %w", r.TreeID, err)
 		}
-		checkpoint, err := tessera.GetLatestCheckpoint(ctx, tesseraStorage)
-		if err != nil {
-			return LogRange{}, fmt.Errorf("getting latest checkpoint: %w", err)
+		var root types.LogRootV1
+		if err := root.UnmarshalBinary(resp.SignedLogRoot.LogRoot); err != nil {
+			return LogRange{}, err
 		}
-		r.TreeLength = int64(checkpoint.Size)
+		r.TreeLength = int64(root.TreeSize)
 	}
 	// If a public key was provided, decode it
 	if r.EncodedPublicKey != "" {
