@@ -5,14 +5,11 @@ import (
 	"database/sql"
 	_ "embed"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/sigstore/rekor/pkg/log"
-	"github.com/spf13/viper"
 	logformat "github.com/transparency-dev/formats/log"
 	tessera "github.com/transparency-dev/trillian-tessera"
-	"github.com/transparency-dev/trillian-tessera/api/layout"
 	"github.com/transparency-dev/trillian-tessera/client"
 	"github.com/transparency-dev/trillian-tessera/storage/mysql"
 )
@@ -78,28 +75,20 @@ func NewTesseraClient(dbConfig *dbConfig) TesseraClient {
 	return TesseraClient{dbConfig}
 }
 
+type noopSigner struct{}
+
+func (n noopSigner) Name() string                    { return "noop" }
+func (n noopSigner) KeyHash() uint32                 { return 1 }
+func (n noopSigner) Sign(msg []byte) ([]byte, error) { return msg, nil }
+
 func (t *TesseraClient) Connect(ctx context.Context, treeID string) (*mysql.Storage, error) {
 	db, err := t.dbConfig.Connect(treeID)
 	if err != nil {
 		return nil, fmt.Errorf("database connection: %w", err)
 	}
 	// Rekor signs the checkpoints itself, no need to create a separate checkpoint signer for Tessera
-	withNoopCP := func(o *tessera.StorageOptions) {
-		o.NewCP = func(size uint64, hash []byte) ([]byte, error) {
-			cp := logformat.Checkpoint{
-				Origin: viper.GetString("rekor_server.hostname"),
-				Size:   size,
-				Hash:   hash,
-			}.Marshal()
-			return cp, nil
-		}
-		o.ParseCP = func(raw []byte) (*logformat.Checkpoint, error) {
-			cp := &logformat.Checkpoint{}
-			_, err := cp.Unmarshal(raw)
-			return cp, err
-		}
-	}
-	storage, err := mysql.New(ctx, db, withNoopCP)
+	signer := noopSigner{}
+	storage, err := mysql.New(ctx, db, tessera.WithCheckpointSigner(signer))
 	if err != nil {
 		return nil, fmt.Errorf("tessera client connection: %w", err)
 	}
@@ -107,15 +96,7 @@ func (t *TesseraClient) Connect(ctx context.Context, treeID string) (*mysql.Stor
 }
 
 func ProofBuilder(ctx context.Context, checkpoint logformat.Checkpoint, tesseraStorage *mysql.Storage) (*client.ProofBuilder, error) {
-	tileOnlyFetcher := func(ctx context.Context, path string) ([]byte, error) {
-		pathParts := strings.SplitN(path, "/", 3)
-		level, index, width, err := layout.ParseTileLevelIndexWidth(pathParts[1], pathParts[2])
-		if err != nil {
-			return nil, err
-		}
-		return tesseraStorage.ReadTile(ctx, level, index, width)
-	}
-	proofBuilder, err := client.NewProofBuilder(ctx, checkpoint, tileOnlyFetcher)
+	proofBuilder, err := client.NewProofBuilder(ctx, checkpoint, tesseraStorage.ReadTile)
 	if err != nil {
 		return nil, fmt.Errorf("new proof builder: %w", err)
 	}

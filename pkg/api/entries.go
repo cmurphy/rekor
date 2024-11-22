@@ -257,7 +257,7 @@ func retrieveLogEntryByIndex(ctx context.Context, logIndex int) (models.LogEntry
 	if err != nil {
 		return models.LogEntry{}, err
 	}
-	entryBundle, err := tesseraStorage.ReadEntryBundle(ctx, uint64(logIndex/256))
+	entryBundle, err := tesseraStorage.ReadEntryBundle(ctx, uint64(logIndex/256), 0)
 	if err != nil {
 		return models.LogEntry{}, err
 	}
