@@ -36,7 +36,6 @@ import (
 	"github.com/sigstore/rekor/pkg/pubsub"
 	"github.com/sigstore/rekor/pkg/signer"
 	"github.com/sigstore/rekor/pkg/tessera"
-	"github.com/sigstore/rekor/pkg/witness"
 	"github.com/sigstore/sigstore/pkg/cryptoutils"
 	"github.com/sigstore/sigstore/pkg/signature"
 	"github.com/sigstore/sigstore/pkg/signature/options"
@@ -176,17 +175,6 @@ func ConfigureAPI() {
 	api, err = NewAPI()
 	if err != nil {
 		log.Logger.Panic(err)
-	}
-
-	if viper.GetBool("enable_stable_checkpoint") {
-		redisClient = NewRedisClient()
-		checkpointPublisher := witness.NewCheckpointPublisher(context.Background(), api.tesseraClient, 0,
-			viper.GetString("rekor_server.hostname"), api.signer, redisClient, viper.GetUint("publish_frequency"), CheckpointPublishCount)
-
-		// create context to cancel goroutine on server shutdown
-		ctx, cancel := context.WithCancel(context.Background())
-		api.checkpointPublishCancel = cancel
-		checkpointPublisher.StartPublisher(ctx)
 	}
 }
 

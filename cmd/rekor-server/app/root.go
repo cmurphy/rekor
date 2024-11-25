@@ -87,9 +87,6 @@ func init() {
 	rootCmd.PersistentFlags().Int("tessera.mysql.max_open_connections", 0, "Tessera MySQL maximum open connections")
 	rootCmd.PersistentFlags().Int("tessera.mysql.max_idle_connections", 0, "Tessera MySQL maximum idle connections")
 
-	rootCmd.PersistentFlags().Bool("enable_stable_checkpoint", true, "publish stable checkpoints to Redis. When disabled, gossiping may not be possible if the log checkpoint updates too frequently")
-	rootCmd.PersistentFlags().Uint("publish_frequency", 5, "how often to publish a new checkpoint, in minutes")
-
 	hostname, err := os.Hostname()
 	if err != nil {
 		hostname = "localhost"
