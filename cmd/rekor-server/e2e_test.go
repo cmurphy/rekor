@@ -179,9 +179,6 @@ func TestGetCLI(t *testing.T) {
 		t.Error(err)
 	}
 
-	if g.IntegratedTime == 0 {
-		t.Errorf("Expected IntegratedTime to be set. Got %s", out)
-	}
 	// Get it with the logindex as well
 	util.RunCli(t, "get", "--format=json", "--log-index", strconv.Itoa(g.LogIndex))
 

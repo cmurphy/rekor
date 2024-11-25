@@ -344,17 +344,12 @@ func init() {
         "required": [
           "logID",
           "logIndex",
-          "body",
-          "integratedTime"
+          "body"
         ],
         "properties": {
           "body": {
             "type": "object",
             "additionalProperties": true
-          },
-          "integratedTime": {
-            "description": "The time the entry was added to the log as a Unix timestamp in seconds",
-            "type": "integer"
           },
           "logID": {
             "description": "This is the SHA256 hash of the DER-encoded public key for the log at the time the entry was included in the log",
@@ -370,8 +365,8 @@ func init() {
               "inclusionProof": {
                 "$ref": "#/definitions/InclusionProof"
               },
-              "signedEntryTimestamp": {
-                "description": "Signature over the logID, logIndex, body and integratedTime.",
+              "signedEntry": {
+                "description": "Signature over the logID, logIndex, and body.",
                 "type": "string",
                 "format": "byte"
               }
@@ -1999,17 +1994,12 @@ func init() {
       "required": [
         "logID",
         "logIndex",
-        "body",
-        "integratedTime"
+        "body"
       ],
       "properties": {
         "body": {
           "type": "object",
           "additionalProperties": true
-        },
-        "integratedTime": {
-          "description": "The time the entry was added to the log as a Unix timestamp in seconds",
-          "type": "integer"
         },
         "logID": {
           "description": "This is the SHA256 hash of the DER-encoded public key for the log at the time the entry was included in the log",
@@ -2026,8 +2016,8 @@ func init() {
             "inclusionProof": {
               "$ref": "#/definitions/InclusionProof"
             },
-            "signedEntryTimestamp": {
-              "description": "Signature over the logID, logIndex, body and integratedTime.",
+            "signedEntry": {
+              "description": "Signature over the logID, logIndex, and body.",
               "type": "string",
               "format": "byte"
             }
@@ -2041,8 +2031,8 @@ func init() {
         "inclusionProof": {
           "$ref": "#/definitions/InclusionProof"
         },
-        "signedEntryTimestamp": {
-          "description": "Signature over the logID, logIndex, body and integratedTime.",
+        "signedEntry": {
+          "description": "Signature over the logID, logIndex, and body.",
           "type": "string",
           "format": "byte"
         }

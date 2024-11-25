@@ -83,10 +83,6 @@ func GenerateTransparencyLogEntry(anon models.LogEntryAnon) (*rekor_pb.Transpare
 			Kind:    pe.Kind(),
 			Version: eimpl.APIVersion(),
 		},
-		IntegratedTime: *anon.IntegratedTime,
-		InclusionPromise: &rekor_pb.InclusionPromise{
-			SignedEntryTimestamp: anon.Verification.SignedEntryTimestamp,
-		},
 		InclusionProof: &rekor_pb.InclusionProof{
 			LogIndex: *anon.Verification.InclusionProof.LogIndex, // relative to the specific tree the entry is found in
 			RootHash: rootHash,

@@ -92,10 +92,6 @@ type LogEntryAnon struct {
 	// Required: true
 	Body interface{} `json:"body"`
 
-	// The time the entry was added to the log as a Unix timestamp in seconds
-	// Required: true
-	IntegratedTime *int64 `json:"integratedTime"`
-
 	// This is the SHA256 hash of the DER-encoded public key for the log at the time the entry was included in the log
 	// Required: true
 	// Pattern: ^[0-9a-fA-F]{64}$
@@ -115,10 +111,6 @@ func (m *LogEntryAnon) Validate(formats strfmt.Registry) error {
 	var res []error
 
 	if err := m.validateBody(formats); err != nil {
-		res = append(res, err)
-	}
-
-	if err := m.validateIntegratedTime(formats); err != nil {
 		res = append(res, err)
 	}
 
@@ -144,15 +136,6 @@ func (m *LogEntryAnon) validateBody(formats strfmt.Registry) error {
 
 	if m.Body == nil {
 		return errors.Required("body", "body", nil)
-	}
-
-	return nil
-}
-
-func (m *LogEntryAnon) validateIntegratedTime(formats strfmt.Registry) error {
-
-	if err := validate.Required("integratedTime", "body", m.IntegratedTime); err != nil {
-		return err
 	}
 
 	return nil
@@ -264,9 +247,9 @@ type LogEntryAnonVerification struct {
 	// inclusion proof
 	InclusionProof *InclusionProof `json:"inclusionProof,omitempty"`
 
-	// Signature over the logID, logIndex, body and integratedTime.
+	// Signature over the logID, logIndex, and body.
 	// Format: byte
-	SignedEntryTimestamp strfmt.Base64 `json:"signedEntryTimestamp,omitempty"`
+	SignedEntry strfmt.Base64 `json:"signedEntry,omitempty"`
 }
 
 // Validate validates this log entry anon verification

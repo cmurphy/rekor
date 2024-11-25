@@ -169,29 +169,24 @@ func VerifyInclusion(ctx context.Context, e *models.LogEntryAnon) error {
 	return nil
 }
 
-// VerifySignedEntryTimestamp verifies the entry's SET against the provided
+// VerifySignedEntry verifies the entry's SE against the provided
 // public key.
 // nolint
-func VerifySignedEntryTimestamp(ctx context.Context, e *models.LogEntryAnon, verifier signature.Verifier) error {
+func VerifySignedEntry(ctx context.Context, e *models.LogEntryAnon, verifier signature.Verifier) error {
 	if e.Verification == nil {
 		return errors.New("missing verification")
 	}
-	if e.Verification.SignedEntryTimestamp == nil {
-		return errors.New("signature missing")
-	}
 
 	type bundle struct {
-		Body           interface{} `json:"body"`
-		IntegratedTime int64       `json:"integratedTime"`
+		Body interface{} `json:"body"`
 		// Note that this is the virtual index.
 		LogIndex int64  `json:"logIndex"`
 		LogID    string `json:"logID"`
 	}
 	bundlePayload := bundle{
-		Body:           e.Body,
-		IntegratedTime: *e.IntegratedTime,
-		LogIndex:       *e.LogIndex,
-		LogID:          *e.LogID,
+		Body:     e.Body,
+		LogIndex: *e.LogIndex,
+		LogID:    *e.LogID,
 	}
 	contents, err := json.Marshal(bundlePayload)
 	if err != nil {
@@ -203,7 +198,7 @@ func VerifySignedEntryTimestamp(ctx context.Context, e *models.LogEntryAnon, ver
 	}
 
 	// verify the SET against the public key
-	if err := verifier.VerifySignature(bytes.NewReader(e.Verification.SignedEntryTimestamp),
+	if err := verifier.VerifySignature(bytes.NewReader(e.Verification.SignedEntry),
 		bytes.NewReader(canonicalized), options.WithContext(ctx)); err != nil {
 		return fmt.Errorf("unable to verify bundle: %w", err)
 	}
@@ -212,7 +207,7 @@ func VerifySignedEntryTimestamp(ctx context.Context, e *models.LogEntryAnon, ver
 
 // VerifyLogEntry performs verification of a LogEntry given a Rekor verifier.
 // Performs inclusion proof verification up to a verified root hash,
-// SignedEntryTimestamp verification, and checkpoint verification.
+// SignedEntry verification, and checkpoint verification.
 // nolint
 func VerifyLogEntry(ctx context.Context, e *models.LogEntryAnon, verifier signature.Verifier) error {
 	// Verify the inclusion proof using the body's leaf hash.
@@ -225,8 +220,8 @@ func VerifyLogEntry(ctx context.Context, e *models.LogEntryAnon, verifier signat
 		return err
 	}
 
-	// Verify the Signed Entry Timestamp.
-	if err := VerifySignedEntryTimestamp(ctx, e, verifier); err != nil {
+	// Verify the Signed Entry.
+	if err := VerifySignedEntry(ctx, e, verifier); err != nil {
 		return err
 	}
 

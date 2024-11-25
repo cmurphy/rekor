@@ -132,7 +132,7 @@ var uploadCmd = &cobra.Command{
 		if err != nil {
 			return nil, fmt.Errorf("retrieving rekor public key")
 		}
-		if err := verify.VerifySignedEntryTimestamp(ctx, &logEntry, verifier); err != nil {
+		if err := verify.VerifySignedEntry(ctx, &logEntry, verifier); err != nil {
 			return nil, fmt.Errorf("unable to verify entry was added to log: %w", err)
 		}
 		// TODO: Remove conditional once inclusion proof/checkpoint is always returned by server.

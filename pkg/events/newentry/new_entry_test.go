@@ -35,7 +35,6 @@ func TestBuildNewEntryEvent(t *testing.T) {
 
 	decamillennium := time.Date(9999, 12, 31, 24, 59, 59, math.MaxInt, time.UTC).Unix()
 	testEntry := &rekor_pb.TransparencyLogEntry{
-		IntegratedTime: decamillennium,
 		KindVersion: &rekor_pb.KindVersion{
 			Kind: "test_kind",
 		},

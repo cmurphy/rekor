@@ -45,7 +45,6 @@ type GetOut struct {
 	AttestationType string
 	Body            interface{}
 	LogIndex        int
-	IntegratedTime  int64
 }
 
 // This was generated with gpg --gen-key, and all defaults.

@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"time"
 
 	"github.com/cyberphone/json-canonicalization/go/src/webpki.org/jsoncanonicalizer"
 	"github.com/go-openapi/runtime/middleware"
@@ -110,10 +109,9 @@ func createLogEntry(params entries.CreateLogEntryParams) (models.LogEntry, middl
 	metricNewEntries.Inc()
 
 	logEntryAnon := models.LogEntryAnon{
-		LogID:          swag.String(api.pubkeyHash),
-		LogIndex:       swag.Int64(int64(idx)),
-		Body:           leaf,
-		IntegratedTime: swag.Int64(time.Now().Unix()), // FIXME: either don't require integrated time or find an authentic source for it
+		LogID:    swag.String(api.pubkeyHash),
+		LogIndex: swag.Int64(int64(idx)),
+		Body:     leaf,
 	}
 
 	signature, err := signEntry(ctx, api.signer, logEntryAnon)
@@ -152,8 +150,8 @@ func createLogEntry(params entries.CreateLogEntryParams) (models.LogEntry, middl
 	}
 
 	logEntryAnon.Verification = &models.LogEntryAnonVerification{
-		InclusionProof:       &inclusionProof,
-		SignedEntryTimestamp: strfmt.Base64(signature),
+		InclusionProof: &inclusionProof,
+		SignedEntry:    strfmt.Base64(signature),
 	}
 
 	uuid := hex.EncodeToString(tesseraEntry.LeafHash())
@@ -276,10 +274,9 @@ func retrieveLogEntryByIndex(ctx context.Context, treeID string, logIndex int) (
 	tesseraEntry := tessera.NewEntry(entry)
 
 	logEntryAnon := models.LogEntryAnon{
-		LogID:          swag.String(api.pubkeyHash),
-		LogIndex:       swag.Int64(int64(logIndex)),
-		Body:           entry,
-		IntegratedTime: swag.Int64(time.Now().Unix()), // FIXME
+		LogID:    swag.String(api.pubkeyHash),
+		LogIndex: swag.Int64(int64(logIndex)),
+		Body:     entry,
 	}
 
 	signature, err := signEntry(ctx, api.signer, logEntryAnon)
@@ -317,8 +314,8 @@ func retrieveLogEntryByIndex(ctx context.Context, treeID string, logIndex int) (
 	}
 
 	logEntryAnon.Verification = &models.LogEntryAnonVerification{
-		InclusionProof:       &inclusionProof,
-		SignedEntryTimestamp: strfmt.Base64(signature),
+		InclusionProof: &inclusionProof,
+		SignedEntry:    strfmt.Base64(signature),
 	}
 
 	entryID := hex.EncodeToString(tesseraEntry.LeafHash())

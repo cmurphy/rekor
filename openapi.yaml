@@ -392,27 +392,23 @@ definitions:
         body:
           type: object
           additionalProperties: true
-        integratedTime:
-          type: integer
-          description: The time the entry was added to the log as a Unix timestamp in seconds
         verification:
           type: object
           properties:
             inclusionProof:
               $ref: '#/definitions/InclusionProof'
-            signedEntryTimestamp:
+            signedEntry:
               type: string
               format: byte
-              # To verify the signedEntryTimestamp:
+              # To verify the signedEntry:
                 # 1. Remove the Verification object from the JSON Document
                 # 2. Canonicalize the remaining JSON document by following RFC 8785 rules
-                # 3. Verify the canonicalized payload and signedEntryTimestamp against rekor's public key
-              description: Signature over the logID, logIndex, body and integratedTime.
+                # 3. Verify the canonicalized payload and signedEntry against rekor's public key
+              description: Signature over the logID, logIndex, and body.
       required:
         - "logID"
         - "logIndex"
         - "body"
-        - "integratedTime"
 
   LogInfo:
     type: object

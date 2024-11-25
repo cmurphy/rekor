@@ -23,7 +23,6 @@ import (
 	"errors"
 	"fmt"
 	"strconv"
-	"time"
 
 	"github.com/go-openapi/runtime"
 	"github.com/spf13/cobra"
@@ -40,19 +39,16 @@ import (
 )
 
 type getCmdOutput struct {
-	Body           interface{}
-	LogIndex       int
-	IntegratedTime int64
-	UUID           string
-	LogID          string
+	Body     interface{}
+	LogIndex int
+	UUID     string
+	LogID    string
 }
 
 func (g *getCmdOutput) String() string {
 	s := fmt.Sprintf("LogID: %v\n", g.LogID)
 
 	s += fmt.Sprintf("Index: %d\n", g.LogIndex)
-	dt := time.Unix(g.IntegratedTime, 0).UTC().Format(time.RFC3339)
-	s += fmt.Sprintf("IntegratedTime: %s\n", dt)
 	s += fmt.Sprintf("UUID: %s\n", g.UUID)
 	var b bytes.Buffer
 	e := json.NewEncoder(&b)
@@ -147,11 +143,10 @@ func parseEntry(uuid string, e models.LogEntryAnon) (interface{}, error) {
 	}
 
 	obj := getCmdOutput{
-		Body:           eimpl,
-		UUID:           uuid,
-		IntegratedTime: *e.IntegratedTime,
-		LogIndex:       int(*e.LogIndex),
-		LogID:          *e.LogID,
+		Body:     eimpl,
+		UUID:     uuid,
+		LogIndex: int(*e.LogIndex),
+		LogID:    *e.LogID,
 	}
 
 	return &obj, nil

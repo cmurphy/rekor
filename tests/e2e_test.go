@@ -118,7 +118,6 @@ type getOut struct {
 	AttestationType string
 	Body            interface{}
 	LogIndex        int
-	IntegratedTime  int64
 }
 
 func TestGetCLI(t *testing.T) {
@@ -152,9 +151,6 @@ func TestGetCLI(t *testing.T) {
 		t.Error(err)
 	}
 
-	if g.IntegratedTime == 0 {
-		t.Errorf("Expected IntegratedTime to be set. Got %s", out)
-	}
 	// Get it with the logindex as well
 	runCli(t, "get", "--format=json", "--log-index", strconv.Itoa(g.LogIndex))
 
@@ -198,7 +194,7 @@ func publicKeyFromRekorClient(ctx context.Context, c *generatedClient.Rekor) (*e
 	return ed, nil
 }
 
-func TestSignedEntryTimestamp(t *testing.T) {
+func TestSignedEntry(t *testing.T) {
 	// Create a random payload and sign it
 	ctx := context.Background()
 	payload := []byte("payload")
@@ -253,7 +249,7 @@ func TestSignedEntryTimestamp(t *testing.T) {
 	logEntry := extractLogEntry(t, resp.GetPayload())
 
 	// verify the signature against the log entry (without the signature)
-	timestampSig := logEntry.Verification.SignedEntryTimestamp
+	sig := logEntry.Verification.SignedEntry
 	logEntry.Verification = nil
 	payload, err = logEntry.MarshalBinary()
 	if err != nil {
@@ -273,7 +269,7 @@ func TestSignedEntryTimestamp(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := verifier.VerifySignature(bytes.NewReader(timestampSig), bytes.NewReader(canonicalized), options.WithContext(ctx)); err != nil {
+	if err := verifier.VerifySignature(bytes.NewReader(sig), bytes.NewReader(canonicalized), options.WithContext(ctx)); err != nil {
 		t.Fatal("unable to verify")
 	}
 }

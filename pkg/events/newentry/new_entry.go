@@ -16,7 +16,6 @@ package newentry
 
 import (
 	"strings"
-	"time"
 
 	"github.com/sigstore/rekor/pkg/events"
 	"golang.org/x/exp/slices"
@@ -39,7 +38,6 @@ func init() {
 func New(id string, entry *rekor_pb.TransparencyLogEntry, subjects []string) (*events.Event, error) {
 	slices.Sort(subjects) // Must be sorted for consistency.
 	attrs := map[string]any{
-		"time":                   time.Unix(entry.GetIntegratedTime(), 0),
 		"rekor_entry_kind":       entry.GetKindVersion().GetKind(),
 		"rekor_signing_subjects": strings.Join(subjects, ","),
 	}
