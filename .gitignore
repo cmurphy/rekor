@@ -17,8 +17,6 @@ docker-compose-sharding.yaml
 sharding-config.yaml
 rekorServerImagerefs
 rekorCliImagerefs
-trillianServerImagerefs
-trillianSignerImagerefs
 rekorImagerefs
 cliImagerefs
 indexImagerefs
