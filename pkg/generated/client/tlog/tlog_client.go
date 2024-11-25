@@ -90,7 +90,7 @@ func (a *Client) GetLogInfo(params *GetLogInfoParams, opts ...ClientOption) (*Ge
 	op := &runtime.ClientOperation{
 		ID:                 "getLogInfo",
 		Method:             "GET",
-		PathPattern:        "/api/v1/log",
+		PathPattern:        "/{treeID}/api/v1/log",
 		ProducesMediaTypes: []string{"application/json"},
 		ConsumesMediaTypes: []string{"application/json"},
 		Schemes:            []string{"http"},
@@ -129,7 +129,7 @@ func (a *Client) GetLogProof(params *GetLogProofParams, opts ...ClientOption) (*
 	op := &runtime.ClientOperation{
 		ID:                 "getLogProof",
 		Method:             "GET",
-		PathPattern:        "/api/v1/log/proof",
+		PathPattern:        "/{treeID}/api/v1/log/proof",
 		ProducesMediaTypes: []string{"application/json"},
 		ConsumesMediaTypes: []string{"application/json"},
 		Schemes:            []string{"http"},

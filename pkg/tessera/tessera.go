@@ -7,15 +7,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/sigstore/rekor/pkg/log"
 	logformat "github.com/transparency-dev/formats/log"
 	tessera "github.com/transparency-dev/trillian-tessera"
 	"github.com/transparency-dev/trillian-tessera/client"
 	"github.com/transparency-dev/trillian-tessera/storage/mysql"
 )
-
-//go:embed schema.sql
-var schema string
 
 type dbConfig struct {
 	baseURI           string
@@ -44,27 +40,6 @@ func (d *dbConfig) Connect(dbName string) (*sql.DB, error) {
 	db.SetMaxIdleConns(d.dbMaxIdleConns)
 
 	return db, nil
-}
-
-func (d *dbConfig) Init(ctx context.Context, dbName string) error {
-	log.Logger.Infof("Initializing database schema")
-	uri := d.baseURI + "/" + dbName + "?multiStatements=true"
-	db, err := sql.Open("mysql", uri)
-	if err != nil {
-		return fmt.Errorf("Failed to connect to DB: %w", err)
-	}
-	defer func() {
-		if err := db.Close(); err != nil {
-			log.Logger.Warnf("Failed to close db: %v", err)
-		}
-	}()
-
-	if _, err := db.ExecContext(ctx, schema); err != nil {
-		return fmt.Errorf("Failed to execute init database schema: %w", err)
-	}
-
-	log.Logger.Info("Database schema initialized")
-	return nil
 }
 
 type TesseraClient struct {

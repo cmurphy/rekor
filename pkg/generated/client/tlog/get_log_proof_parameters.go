@@ -97,7 +97,7 @@ type GetLogProofParams struct {
 
 	   The tree ID of the tree that you wish to prove consistency for
 	*/
-	TreeID *string
+	TreeID string
 
 	timeout    time.Duration
 	Context    context.Context
@@ -186,13 +186,13 @@ func (o *GetLogProofParams) SetLastSize(lastSize int64) {
 }
 
 // WithTreeID adds the treeID to the get log proof params
-func (o *GetLogProofParams) WithTreeID(treeID *string) *GetLogProofParams {
+func (o *GetLogProofParams) WithTreeID(treeID string) *GetLogProofParams {
 	o.SetTreeID(treeID)
 	return o
 }
 
 // SetTreeID adds the treeId to the get log proof params
-func (o *GetLogProofParams) SetTreeID(treeID *string) {
+func (o *GetLogProofParams) SetTreeID(treeID string) {
 	o.TreeID = treeID
 }
 
@@ -231,21 +231,9 @@ func (o *GetLogProofParams) WriteToRequest(r runtime.ClientRequest, reg strfmt.R
 		}
 	}
 
-	if o.TreeID != nil {
-
-		// query param treeID
-		var qrTreeID string
-
-		if o.TreeID != nil {
-			qrTreeID = *o.TreeID
-		}
-		qTreeID := qrTreeID
-		if qTreeID != "" {
-
-			if err := r.SetQueryParam("treeID", qTreeID); err != nil {
-				return err
-			}
-		}
+	// path param treeID
+	if err := r.SetPathParam("treeID", o.TreeID); err != nil {
+		return err
 	}
 
 	if len(res) > 0 {

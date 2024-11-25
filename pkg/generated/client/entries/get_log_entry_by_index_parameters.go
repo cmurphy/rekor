@@ -84,6 +84,12 @@ type GetLogEntryByIndexParams struct {
 	*/
 	LogIndex int64
 
+	/* TreeID.
+
+	   The tree ID of the tree from which you wish to get an entry
+	*/
+	TreeID string
+
 	timeout    time.Duration
 	Context    context.Context
 	HTTPClient *http.Client
@@ -148,6 +154,17 @@ func (o *GetLogEntryByIndexParams) SetLogIndex(logIndex int64) {
 	o.LogIndex = logIndex
 }
 
+// WithTreeID adds the treeID to the get log entry by index params
+func (o *GetLogEntryByIndexParams) WithTreeID(treeID string) *GetLogEntryByIndexParams {
+	o.SetTreeID(treeID)
+	return o
+}
+
+// SetTreeID adds the treeId to the get log entry by index params
+func (o *GetLogEntryByIndexParams) SetTreeID(treeID string) {
+	o.TreeID = treeID
+}
+
 // WriteToRequest writes these params to a swagger request
 func (o *GetLogEntryByIndexParams) WriteToRequest(r runtime.ClientRequest, reg strfmt.Registry) error {
 
@@ -164,6 +181,11 @@ func (o *GetLogEntryByIndexParams) WriteToRequest(r runtime.ClientRequest, reg s
 		if err := r.SetQueryParam("logIndex", qLogIndex); err != nil {
 			return err
 		}
+	}
+
+	// path param treeID
+	if err := r.SetPathParam("treeID", o.TreeID); err != nil {
+		return err
 	}
 
 	if len(res) > 0 {

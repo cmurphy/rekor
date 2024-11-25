@@ -46,7 +46,7 @@ func NewGetLogProof(ctx *middleware.Context, handler GetLogProofHandler) *GetLog
 }
 
 /*
-	GetLogProof swagger:route GET /api/v1/log/proof tlog getLogProof
+	GetLogProof swagger:route GET /{treeID}/api/v1/log/proof tlog getLogProof
 
 # Get information required to generate a consistency proof for the transparency log
 

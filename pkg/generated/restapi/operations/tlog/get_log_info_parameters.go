@@ -60,6 +60,11 @@ type GetLogInfoParams struct {
 	  Default: false
 	*/
 	Stable *bool
+	/*The tree ID of the tree about which you wish to get information
+	  Required: true
+	  In: path
+	*/
+	TreeID string
 }
 
 // BindRequest both binds and validates a request, it assumes that complex things implement a Validatable(strfmt.Registry) error interface
@@ -75,6 +80,11 @@ func (o *GetLogInfoParams) BindRequest(r *http.Request, route *middleware.Matche
 
 	qStable, qhkStable, _ := qs.GetOK("stable")
 	if err := o.bindStable(qStable, qhkStable, route.Formats); err != nil {
+		res = append(res, err)
+	}
+
+	rTreeID, rhkTreeID, _ := route.Params.GetOK("treeID")
+	if err := o.bindTreeID(rTreeID, rhkTreeID, route.Formats); err != nil {
 		res = append(res, err)
 	}
 	if len(res) > 0 {
@@ -103,6 +113,20 @@ func (o *GetLogInfoParams) bindStable(rawData []string, hasKey bool, formats str
 		return errors.InvalidType("stable", "query", "bool", raw)
 	}
 	o.Stable = &value
+
+	return nil
+}
+
+// bindTreeID binds and validates parameter TreeID from path.
+func (o *GetLogInfoParams) bindTreeID(rawData []string, hasKey bool, formats strfmt.Registry) error {
+	var raw string
+	if len(rawData) > 0 {
+		raw = rawData[len(rawData)-1]
+	}
+
+	// Required: true
+	// Parameter is provided by construction from the route
+	o.TreeID = raw
 
 	return nil
 }

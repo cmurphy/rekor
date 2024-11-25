@@ -84,6 +84,12 @@ type GetLogInfoParams struct {
 	*/
 	Stable *bool
 
+	/* TreeID.
+
+	   The tree ID of the tree about which you wish to get information
+	*/
+	TreeID string
+
 	timeout    time.Duration
 	Context    context.Context
 	HTTPClient *http.Client
@@ -159,6 +165,17 @@ func (o *GetLogInfoParams) SetStable(stable *bool) {
 	o.Stable = stable
 }
 
+// WithTreeID adds the treeID to the get log info params
+func (o *GetLogInfoParams) WithTreeID(treeID string) *GetLogInfoParams {
+	o.SetTreeID(treeID)
+	return o
+}
+
+// SetTreeID adds the treeId to the get log info params
+func (o *GetLogInfoParams) SetTreeID(treeID string) {
+	o.TreeID = treeID
+}
+
 // WriteToRequest writes these params to a swagger request
 func (o *GetLogInfoParams) WriteToRequest(r runtime.ClientRequest, reg strfmt.Registry) error {
 
@@ -182,6 +199,11 @@ func (o *GetLogInfoParams) WriteToRequest(r runtime.ClientRequest, reg strfmt.Re
 				return err
 			}
 		}
+	}
+
+	// path param treeID
+	if err := r.SetPathParam("treeID", o.TreeID); err != nil {
+		return err
 	}
 
 	if len(res) > 0 {

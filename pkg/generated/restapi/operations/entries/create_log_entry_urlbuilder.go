@@ -25,11 +25,16 @@ import (
 	"errors"
 	"net/url"
 	golangswaggerpaths "path"
+	"strings"
 )
 
 // CreateLogEntryURL generates an URL for the create log entry operation
 type CreateLogEntryURL struct {
+	TreeID string
+
 	_basePath string
+	// avoid unkeyed usage
+	_ struct{}
 }
 
 // WithBasePath sets the base path for this url builder, only required when it's different from the
@@ -51,7 +56,14 @@ func (o *CreateLogEntryURL) SetBasePath(bp string) {
 func (o *CreateLogEntryURL) Build() (*url.URL, error) {
 	var _result url.URL
 
-	var _path = "/api/v1/log/entries"
+	var _path = "/{treeID}/api/v1/log/entries"
+
+	treeID := o.TreeID
+	if treeID != "" {
+		_path = strings.Replace(_path, "{treeID}", treeID, -1)
+	} else {
+		return nil, errors.New("treeId is required on CreateLogEntryURL")
+	}
 
 	_basePath := o._basePath
 	_result.Path = golangswaggerpaths.Join(_basePath, _path)

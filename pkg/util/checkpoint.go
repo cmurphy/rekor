@@ -145,9 +145,9 @@ func (r *SignedCheckpoint) UnmarshalText(data []byte) error {
 }
 
 // CreateAndSignCheckpoint creates a signed checkpoint as a commitment to the current root hash
-func CreateAndSignCheckpoint(ctx context.Context, hostname string, treeID int64, treeSize uint64, rootHash []byte, signer signature.Signer) ([]byte, error) {
+func CreateAndSignCheckpoint(ctx context.Context, hostname string, treeID string, treeSize uint64, rootHash []byte, signer signature.Signer) ([]byte, error) {
 	sth, err := CreateSignedCheckpoint(Checkpoint{
-		Origin: fmt.Sprintf("%s - %d", hostname, treeID),
+		Origin: fmt.Sprintf("%s - %s", hostname, treeID),
 		Size:   treeSize,
 		Hash:   rootHash,
 	})

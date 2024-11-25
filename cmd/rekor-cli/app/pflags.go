@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/sigstore/rekor/pkg/pki"
-	"github.com/sigstore/rekor/pkg/sharding"
 
 	"github.com/spf13/pflag"
 
@@ -290,10 +289,6 @@ func validateFileOrURL(v string) error {
 
 // validateID ensures the ID is either an EntryID (TreeID + UUID) or a UUID
 func validateID(v string) error {
-	if len(v) != sharding.EntryIDHexStringLen && len(v) != sharding.UUIDHexStringLen {
-		return fmt.Errorf("ID len error, expected %v (EntryID) or %v (UUID) but got len %v for ID %v", sharding.EntryIDHexStringLen, sharding.UUIDHexStringLen, len(v), v)
-	}
-
 	if !validator.IsHexadecimal(v) {
 		return fmt.Errorf("invalid uuid: %v", v)
 	}

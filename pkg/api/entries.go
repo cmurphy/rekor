@@ -70,7 +70,7 @@ func signEntry(ctx context.Context, signer signature.Signer, entry models.LogEnt
 // GetLogEntryAndProofByIndexHandler returns the entry and inclusion proof for a specified log index
 func GetLogEntryByIndexHandler(params entries.GetLogEntryByIndexParams) middleware.Responder {
 	ctx := params.HTTPRequest.Context()
-	logEntry, err := retrieveLogEntryByIndex(ctx, int(params.LogIndex))
+	logEntry, err := retrieveLogEntryByIndex(ctx, params.TreeID, int(params.LogIndex))
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			return handleRekorAPIError(params, http.StatusNotFound, fmt.Errorf("grpc error: %w", err), "")
@@ -96,7 +96,7 @@ func createLogEntry(params entries.CreateLogEntryParams) (models.LogEntry, middl
 	}
 
 	tesseraEntry := tessera.NewEntry(leaf)
-	tesseraStorage, err := api.tesseraClient.Connect(ctx, "test_tessera") // FIXME: tree name
+	tesseraStorage, err := api.tesseraClient.Connect(ctx, params.TreeID)
 	if err != nil {
 		return nil, handleRekorAPIError(params, http.StatusInternalServerError, err, tesseraCommunicationError)
 	}
@@ -125,7 +125,7 @@ func createLogEntry(params entries.CreateLogEntryParams) (models.LogEntry, middl
 	if err != nil {
 		return nil, handleRekorAPIError(params, http.StatusInternalServerError, err, err.Error())
 	}
-	scBytes, err := util.CreateAndSignCheckpoint(ctx, viper.GetString("rekor_server.hostname"), api.logID, checkpoint.Size, checkpoint.Hash, api.signer)
+	scBytes, err := util.CreateAndSignCheckpoint(ctx, viper.GetString("rekor_server.hostname"), params.TreeID, checkpoint.Size, checkpoint.Hash, api.signer)
 	if err != nil {
 		return nil, handleRekorAPIError(params, http.StatusInternalServerError, err, sthGenerateError)
 	}
@@ -250,10 +250,10 @@ func getEntryURL(locationURL url.URL, uuid string) strfmt.URI {
 
 var ErrNotFound = errors.New("grpc returned 0 leaves with success code")
 
-func retrieveLogEntryByIndex(ctx context.Context, logIndex int) (models.LogEntry, error) {
+func retrieveLogEntryByIndex(ctx context.Context, treeID string, logIndex int) (models.LogEntry, error) {
 	log.ContextLogger(ctx).Infof("Retrieving log entry by index %d", logIndex)
 
-	tesseraStorage, err := api.tesseraClient.Connect(ctx, "test_tessera") // FIXME: tree name
+	tesseraStorage, err := api.tesseraClient.Connect(ctx, treeID)
 	if err != nil {
 		return models.LogEntry{}, err
 	}
@@ -291,7 +291,7 @@ func retrieveLogEntryByIndex(ctx context.Context, logIndex int) (models.LogEntry
 	if err != nil {
 		return models.LogEntry{}, fmt.Errorf("reading checkpoint: %w", err)
 	}
-	scBytes, err := util.CreateAndSignCheckpoint(ctx, viper.GetString("rekor_server.hostname"), api.logID, checkpoint.Size, checkpoint.Hash, api.signer)
+	scBytes, err := util.CreateAndSignCheckpoint(ctx, viper.GetString("rekor_server.hostname"), treeID, checkpoint.Size, checkpoint.Hash, api.signer)
 	if err != nil {
 		return models.LogEntry{}, err
 	}

@@ -25,11 +25,12 @@ import (
 	"errors"
 	"net/url"
 	golangswaggerpaths "path"
+	"strings"
 )
 
 // GetPublicKeyURL generates an URL for the get public key operation
 type GetPublicKeyURL struct {
-	TreeID *string
+	TreeID string
 
 	_basePath string
 	// avoid unkeyed usage
@@ -55,22 +56,17 @@ func (o *GetPublicKeyURL) SetBasePath(bp string) {
 func (o *GetPublicKeyURL) Build() (*url.URL, error) {
 	var _result url.URL
 
-	var _path = "/api/v1/log/publicKey"
+	var _path = "/{treeID}/api/v1/log/publicKey"
+
+	treeID := o.TreeID
+	if treeID != "" {
+		_path = strings.Replace(_path, "{treeID}", treeID, -1)
+	} else {
+		return nil, errors.New("treeId is required on GetPublicKeyURL")
+	}
 
 	_basePath := o._basePath
 	_result.Path = golangswaggerpaths.Join(_basePath, _path)
-
-	qs := make(url.Values)
-
-	var treeIDQ string
-	if o.TreeID != nil {
-		treeIDQ = *o.TreeID
-	}
-	if treeIDQ != "" {
-		qs.Set("treeID", treeIDQ)
-	}
-
-	_result.RawQuery = qs.Encode()
 
 	return &_result, nil
 }

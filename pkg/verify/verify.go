@@ -51,7 +51,7 @@ func ProveConsistency(ctx context.Context, rClient *client.Rekor,
 		consistencyParams := tlog.NewGetLogProofParamsWithContext(ctx)
 		consistencyParams.FirstSize = &oldTreeSize      // Root size at the old, or trusted state.
 		consistencyParams.LastSize = int64(newSTH.Size) // Root size at the new state to verify against.
-		consistencyParams.TreeID = &treeID
+		consistencyParams.TreeID = treeID
 		consistencyProof, err := rClient.Tlog.GetLogProof(consistencyParams)
 		if err != nil {
 			return err

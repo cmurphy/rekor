@@ -86,10 +86,6 @@ func init() {
 	rootCmd.PersistentFlags().Duration("tessera.mysql.conn_max_lifetime", 0*time.Second, "Tessera MySQL maximum connection lifetime")
 	rootCmd.PersistentFlags().Int("tessera.mysql.max_open_connections", 0, "Tessera MySQL maximum open connections")
 	rootCmd.PersistentFlags().Int("tessera.mysql.max_idle_connections", 0, "Tessera MySQL maximum idle connections")
-	rootCmd.PersistentFlags().String("trillian_log_server.address", "127.0.0.1", "Trillian log server address")
-	rootCmd.PersistentFlags().Uint16("trillian_log_server.port", 8090, "Trillian log server port")
-	rootCmd.PersistentFlags().Uint("trillian_log_server.tlog_id", 0, "Trillian tree id")
-	rootCmd.PersistentFlags().String("trillian_log_server.sharding_config", "", "path to config file for inactive shards, in JSON or YAML")
 
 	rootCmd.PersistentFlags().Bool("enable_stable_checkpoint", true, "publish stable checkpoints to Redis. When disabled, gossiping may not be possible if the log checkpoint updates too frequently")
 	rootCmd.PersistentFlags().Uint("publish_frequency", 5, "how often to publish a new checkpoint, in minutes")

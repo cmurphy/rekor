@@ -51,7 +51,7 @@ func init() {
   },
   "host": "rekor.sigstore.dev",
   "paths": {
-    "/api/v1/log": {
+    "/{treeID}/api/v1/log": {
       "get": {
         "description": "Returns the current root hash and size of the merkle tree used to store the log entries.",
         "tags": [
@@ -60,6 +60,13 @@ func init() {
         "summary": "Get information about the current state of the transparency log",
         "operationId": "getLogInfo",
         "parameters": [
+          {
+            "type": "string",
+            "description": "The tree ID of the tree about which you wish to get information",
+            "name": "treeID",
+            "in": "path",
+            "required": true
+          },
           {
             "type": "boolean",
             "default": false,
@@ -81,7 +88,7 @@ func init() {
         }
       }
     },
-    "/api/v1/log/entries": {
+    "/{treeID}/api/v1/log/entries": {
       "get": {
         "tags": [
           "entries"
@@ -89,6 +96,13 @@ func init() {
         "summary": "Retrieves an entry and inclusion proof from the transparency log (if it exists) by index",
         "operationId": "getLogEntryByIndex",
         "parameters": [
+          {
+            "type": "string",
+            "description": "The tree ID of the tree from which you wish to get an entry",
+            "name": "treeID",
+            "in": "path",
+            "required": true
+          },
           {
             "type": "integer",
             "description": "specifies the index of the entry in the transparency log to be retrieved",
@@ -120,6 +134,13 @@ func init() {
         "summary": "Creates an entry in the transparency log",
         "operationId": "createLogEntry",
         "parameters": [
+          {
+            "type": "string",
+            "description": "The tree ID of the tree in which you wish to create an entry",
+            "name": "treeID",
+            "in": "path",
+            "required": true
+          },
           {
             "name": "proposedEntry",
             "in": "body",
@@ -159,7 +180,7 @@ func init() {
         }
       }
     },
-    "/api/v1/log/proof": {
+    "/{treeID}/api/v1/log/proof": {
       "get": {
         "description": "Returns a list of hashes for specified tree sizes that can be used to confirm the consistency of the transparency log",
         "tags": [
@@ -185,11 +206,11 @@ func init() {
             "required": true
           },
           {
-            "pattern": "^[0-9]+$",
             "type": "string",
             "description": "The tree ID of the tree that you wish to prove consistency for",
             "name": "treeID",
-            "in": "query"
+            "in": "path",
+            "required": true
           }
         ],
         "responses": {
@@ -208,7 +229,7 @@ func init() {
         }
       }
     },
-    "/api/v1/log/publicKey": {
+    "/{treeID}/api/v1/log/publicKey": {
       "get": {
         "description": "Returns the public key that can be used to validate the signed tree head",
         "produces": [
@@ -221,11 +242,11 @@ func init() {
         "operationId": "getPublicKey",
         "parameters": [
           {
-            "pattern": "^[0-9]+$",
             "type": "string",
-            "description": "The tree ID of the tree you wish to get a public key for",
+            "description": "The tree ID of the tree for which you wish to get a public key",
             "name": "treeID",
-            "in": "query"
+            "in": "path",
+            "required": true
           }
         ],
         "responses": {
@@ -273,37 +294,6 @@ func init() {
         },
         "message": {
           "type": "string"
-        }
-      }
-    },
-    "InactiveShardLogInfo": {
-      "type": "object",
-      "required": [
-        "rootHash",
-        "treeSize",
-        "signedTreeHead",
-        "treeID"
-      ],
-      "properties": {
-        "rootHash": {
-          "description": "The current hash value stored at the root of the merkle tree",
-          "type": "string",
-          "pattern": "^[0-9a-fA-F]{64}$"
-        },
-        "signedTreeHead": {
-          "description": "The current signed tree head",
-          "type": "string",
-          "format": "signedCheckpoint"
-        },
-        "treeID": {
-          "description": "The current treeID",
-          "type": "string",
-          "pattern": "^[0-9]+$"
-        },
-        "treeSize": {
-          "description": "The current number of nodes in the merkle tree",
-          "type": "integer",
-          "minimum": 1
         }
       }
     },
@@ -399,12 +389,6 @@ func init() {
         "treeID"
       ],
       "properties": {
-        "inactiveShards": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/InactiveShardLogInfo"
-          }
-        },
         "rootHash": {
           "description": "The current hash value stored at the root of the merkle tree",
           "type": "string",
@@ -773,7 +757,7 @@ func init() {
   },
   "host": "rekor.sigstore.dev",
   "paths": {
-    "/api/v1/log": {
+    "/{treeID}/api/v1/log": {
       "get": {
         "description": "Returns the current root hash and size of the merkle tree used to store the log entries.",
         "tags": [
@@ -782,6 +766,13 @@ func init() {
         "summary": "Get information about the current state of the transparency log",
         "operationId": "getLogInfo",
         "parameters": [
+          {
+            "type": "string",
+            "description": "The tree ID of the tree about which you wish to get information",
+            "name": "treeID",
+            "in": "path",
+            "required": true
+          },
           {
             "type": "boolean",
             "default": false,
@@ -806,7 +797,7 @@ func init() {
         }
       }
     },
-    "/api/v1/log/entries": {
+    "/{treeID}/api/v1/log/entries": {
       "get": {
         "tags": [
           "entries"
@@ -814,6 +805,13 @@ func init() {
         "summary": "Retrieves an entry and inclusion proof from the transparency log (if it exists) by index",
         "operationId": "getLogEntryByIndex",
         "parameters": [
+          {
+            "type": "string",
+            "description": "The tree ID of the tree from which you wish to get an entry",
+            "name": "treeID",
+            "in": "path",
+            "required": true
+          },
           {
             "minimum": 0,
             "type": "integer",
@@ -849,6 +847,13 @@ func init() {
         "summary": "Creates an entry in the transparency log",
         "operationId": "createLogEntry",
         "parameters": [
+          {
+            "type": "string",
+            "description": "The tree ID of the tree in which you wish to create an entry",
+            "name": "treeID",
+            "in": "path",
+            "required": true
+          },
           {
             "name": "proposedEntry",
             "in": "body",
@@ -903,7 +908,7 @@ func init() {
         }
       }
     },
-    "/api/v1/log/proof": {
+    "/{treeID}/api/v1/log/proof": {
       "get": {
         "description": "Returns a list of hashes for specified tree sizes that can be used to confirm the consistency of the transparency log",
         "tags": [
@@ -929,11 +934,11 @@ func init() {
             "required": true
           },
           {
-            "pattern": "^[0-9]+$",
             "type": "string",
             "description": "The tree ID of the tree that you wish to prove consistency for",
             "name": "treeID",
-            "in": "query"
+            "in": "path",
+            "required": true
           }
         ],
         "responses": {
@@ -958,7 +963,7 @@ func init() {
         }
       }
     },
-    "/api/v1/log/publicKey": {
+    "/{treeID}/api/v1/log/publicKey": {
       "get": {
         "description": "Returns the public key that can be used to validate the signed tree head",
         "produces": [
@@ -971,11 +976,11 @@ func init() {
         "operationId": "getPublicKey",
         "parameters": [
           {
-            "pattern": "^[0-9]+$",
             "type": "string",
-            "description": "The tree ID of the tree you wish to get a public key for",
+            "description": "The tree ID of the tree for which you wish to get a public key",
             "name": "treeID",
-            "in": "query"
+            "in": "path",
+            "required": true
           }
         ],
         "responses": {
@@ -1556,37 +1561,6 @@ func init() {
         }
       }
     },
-    "InactiveShardLogInfo": {
-      "type": "object",
-      "required": [
-        "rootHash",
-        "treeSize",
-        "signedTreeHead",
-        "treeID"
-      ],
-      "properties": {
-        "rootHash": {
-          "description": "The current hash value stored at the root of the merkle tree",
-          "type": "string",
-          "pattern": "^[0-9a-fA-F]{64}$"
-        },
-        "signedTreeHead": {
-          "description": "The current signed tree head",
-          "type": "string",
-          "format": "signedCheckpoint"
-        },
-        "treeID": {
-          "description": "The current treeID",
-          "type": "string",
-          "pattern": "^[0-9]+$"
-        },
-        "treeSize": {
-          "description": "The current number of nodes in the merkle tree",
-          "type": "integer",
-          "minimum": 1
-        }
-      }
-    },
     "InclusionProof": {
       "type": "object",
       "required": [
@@ -2083,12 +2057,6 @@ func init() {
         "treeID"
       ],
       "properties": {
-        "inactiveShards": {
-          "type": "array",
-          "items": {
-            "$ref": "#/definitions/InactiveShardLogInfo"
-          }
-        },
         "rootHash": {
           "description": "The current hash value stored at the root of the merkle tree",
           "type": "string",

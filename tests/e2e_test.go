@@ -50,7 +50,6 @@ import (
 	"github.com/sigstore/rekor/pkg/generated/client/pubkey"
 	"github.com/sigstore/rekor/pkg/generated/models"
 	sigx509 "github.com/sigstore/rekor/pkg/pki/x509"
-	"github.com/sigstore/rekor/pkg/sharding"
 	"github.com/sigstore/rekor/pkg/signer"
 	_ "github.com/sigstore/rekor/pkg/types/intoto/v0.0.1"
 	rekord "github.com/sigstore/rekor/pkg/types/rekord/v0.0.1"
@@ -137,7 +136,7 @@ func TestGetCLI(t *testing.T) {
 	out := runCli(t, "upload", "--artifact", artifactPath, "--signature", sigPath, "--public-key", pubPath)
 	outputContains(t, out, "Created entry at")
 
-	uuid, err := sharding.GetUUIDFromIDString(getUUIDFromUploadOutput(t, out))
+	uuid := getUUIDFromUploadOutput(t, out)
 	if err != nil {
 		t.Error(err)
 	}
@@ -177,10 +176,7 @@ func TestGetCLI(t *testing.T) {
 
 	// Exercise GET with the new EntryID (TreeID + UUID)
 	tid := getTreeID(t)
-	entryID, err := sharding.CreateEntryIDFromParts(fmt.Sprintf("%x", tid), uuid)
-	if err != nil {
-		t.Error(err)
-	}
+	entryID := uuid
 	runCli(t, "get", "--format=json", "--uuid", entryID.ReturnEntryIDString())
 }
 
@@ -521,13 +517,13 @@ func TestSearchValidateTreeID(t *testing.T) {
 	out := runCli(t, "upload", "--artifact", artifactPath, "--signature", sigPath, "--public-key", pubPath)
 	outputContains(t, out, "Created entry at")
 
-	uuid, err := sharding.GetUUIDFromIDString(getUUIDFromUploadOutput(t, out))
+	uuid, err := getUUIDFromUploadOutput(t, out)
 	if err != nil {
 		t.Error(err)
 	}
 	// Make sure we can get by Entry ID
 	tid := getTreeID(t)
-	entryID, err := sharding.CreateEntryIDFromParts(fmt.Sprintf("%x", tid), uuid)
+	entryID := uuid
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -542,7 +538,7 @@ func TestSearchValidateTreeID(t *testing.T) {
 
 	// Make sure we fail with a random tree ID
 	fakeTID := tid + 1
-	entryID, err = sharding.CreateEntryIDFromParts(fmt.Sprintf("%x", fakeTID), uuid)
+	entryID := uuid
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -627,10 +623,10 @@ func TestSearchLogQuerySingleShard(t *testing.T) {
 	secondOut := runCli(t, "upload", "--artifact", secondArtifactPath, "--signature", secondSigPath, "--public-key", pubPath)
 
 	firstEntryID := getUUIDFromUploadOutput(t, firstOut)
-	firstUUID, _ := sharding.GetUUIDFromIDString(firstEntryID)
+	firstUUID := firstEntryID
 	firstIndex := int64(getLogIndexFromUploadOutput(t, firstOut))
 	secondEntryID := getUUIDFromUploadOutput(t, secondOut)
-	secondUUID, _ := sharding.GetUUIDFromIDString(secondEntryID)
+	secondUUID := secondEntryID
 	secondIndex := int64(getLogIndexFromUploadOutput(t, secondOut))
 
 	// this is invalid because treeID is > int64

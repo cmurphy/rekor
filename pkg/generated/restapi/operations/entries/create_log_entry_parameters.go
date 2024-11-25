@@ -28,6 +28,7 @@ import (
 	"github.com/go-openapi/errors"
 	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/runtime/middleware"
+	"github.com/go-openapi/strfmt"
 	"github.com/go-openapi/validate"
 
 	"github.com/sigstore/rekor/pkg/generated/models"
@@ -55,6 +56,11 @@ type CreateLogEntryParams struct {
 	  In: body
 	*/
 	ProposedEntry models.ProposedEntry
+	/*The tree ID of the tree in which you wish to create an entry
+	  Required: true
+	  In: path
+	*/
+	TreeID string
 }
 
 // BindRequest both binds and validates a request, it assumes that complex things implement a Validatable(strfmt.Registry) error interface
@@ -92,8 +98,27 @@ func (o *CreateLogEntryParams) BindRequest(r *http.Request, route *middleware.Ma
 	} else {
 		res = append(res, errors.Required("proposedEntry", "body", ""))
 	}
+
+	rTreeID, rhkTreeID, _ := route.Params.GetOK("treeID")
+	if err := o.bindTreeID(rTreeID, rhkTreeID, route.Formats); err != nil {
+		res = append(res, err)
+	}
 	if len(res) > 0 {
 		return errors.CompositeValidationError(res...)
 	}
+	return nil
+}
+
+// bindTreeID binds and validates parameter TreeID from path.
+func (o *CreateLogEntryParams) bindTreeID(rawData []string, hasKey bool, formats strfmt.Registry) error {
+	var raw string
+	if len(rawData) > 0 {
+		raw = rawData[len(rawData)-1]
+	}
+
+	// Required: true
+	// Parameter is provided by construction from the route
+	o.TreeID = raw
+
 	return nil
 }

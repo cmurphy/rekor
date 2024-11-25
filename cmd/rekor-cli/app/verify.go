@@ -31,7 +31,6 @@ import (
 	"github.com/sigstore/rekor/pkg/generated/client/entries"
 	"github.com/sigstore/rekor/pkg/generated/models"
 	"github.com/sigstore/rekor/pkg/log"
-	"github.com/sigstore/rekor/pkg/sharding"
 	"github.com/sigstore/rekor/pkg/verify"
 )
 
@@ -45,7 +44,7 @@ type verifyCmdOutput struct {
 }
 
 func (v *verifyCmdOutput) String() string {
-	leafHash, _ := sharding.GetUUIDFromIDString(v.EntryUUID)
+	leafHash := v.EntryUUID
 	s := fmt.Sprintf("Current Root Hash: %v\n", v.RootHash)
 	s += fmt.Sprintf("Entry Hash: %v\n", leafHash)
 	s += fmt.Sprintf("Entry Index in Current Tree: %v\n", v.Index)

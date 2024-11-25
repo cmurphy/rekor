@@ -33,7 +33,6 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -44,7 +43,6 @@ import (
 	"github.com/secure-systems-lab/go-securesystemslib/dsse"
 	"github.com/sigstore/rekor/pkg/generated/models"
 	sigx509 "github.com/sigstore/rekor/pkg/pki/x509"
-	"github.com/sigstore/rekor/pkg/sharding"
 	"github.com/sigstore/rekor/pkg/types"
 	"github.com/sigstore/sigstore/pkg/signature"
 )
@@ -310,19 +308,7 @@ func TestHarnessGetAllEntriesUUID(t *testing.T) {
 }
 
 func entryID(t *testing.T, uuid string) string {
-	if sharding.ValidateEntryID(uuid) == nil {
-		return uuid
-	}
-	treeID, err := strconv.Atoi(os.Getenv("TREE_ID"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	tid := strconv.FormatInt(int64(treeID), 16)
-	ts, err := sharding.PadToTreeIDLen(tid)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return ts + uuid
+	return uuid
 }
 
 func activeTreeSize(t *testing.T) int {

@@ -82,6 +82,12 @@ type CreateLogEntryParams struct {
 	// ProposedEntry.
 	ProposedEntry models.ProposedEntry
 
+	/* TreeID.
+
+	   The tree ID of the tree in which you wish to create an entry
+	*/
+	TreeID string
+
 	timeout    time.Duration
 	Context    context.Context
 	HTTPClient *http.Client
@@ -146,6 +152,17 @@ func (o *CreateLogEntryParams) SetProposedEntry(proposedEntry models.ProposedEnt
 	o.ProposedEntry = proposedEntry
 }
 
+// WithTreeID adds the treeID to the create log entry params
+func (o *CreateLogEntryParams) WithTreeID(treeID string) *CreateLogEntryParams {
+	o.SetTreeID(treeID)
+	return o
+}
+
+// SetTreeID adds the treeId to the create log entry params
+func (o *CreateLogEntryParams) SetTreeID(treeID string) {
+	o.TreeID = treeID
+}
+
 // WriteToRequest writes these params to a swagger request
 func (o *CreateLogEntryParams) WriteToRequest(r runtime.ClientRequest, reg strfmt.Registry) error {
 
@@ -154,6 +171,11 @@ func (o *CreateLogEntryParams) WriteToRequest(r runtime.ClientRequest, reg strfm
 	}
 	var res []error
 	if err := r.SetBodyParam(o.ProposedEntry); err != nil {
+		return err
+	}
+
+	// path param treeID
+	if err := r.SetPathParam("treeID", o.TreeID); err != nil {
 		return err
 	}
 

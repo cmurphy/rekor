@@ -25,12 +25,15 @@ import (
 	"errors"
 	"net/url"
 	golangswaggerpaths "path"
+	"strings"
 
 	"github.com/go-openapi/swag"
 )
 
 // GetLogEntryByIndexURL generates an URL for the get log entry by index operation
 type GetLogEntryByIndexURL struct {
+	TreeID string
+
 	LogIndex int64
 
 	_basePath string
@@ -57,7 +60,14 @@ func (o *GetLogEntryByIndexURL) SetBasePath(bp string) {
 func (o *GetLogEntryByIndexURL) Build() (*url.URL, error) {
 	var _result url.URL
 
-	var _path = "/api/v1/log/entries"
+	var _path = "/{treeID}/api/v1/log/entries"
+
+	treeID := o.TreeID
+	if treeID != "" {
+		_path = strings.Replace(_path, "{treeID}", treeID, -1)
+	} else {
+		return nil, errors.New("treeId is required on GetLogEntryByIndexURL")
+	}
 
 	_basePath := o._basePath
 	_result.Path = golangswaggerpaths.Join(_basePath, _path)

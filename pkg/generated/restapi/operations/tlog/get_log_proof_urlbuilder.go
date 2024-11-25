@@ -25,15 +25,17 @@ import (
 	"errors"
 	"net/url"
 	golangswaggerpaths "path"
+	"strings"
 
 	"github.com/go-openapi/swag"
 )
 
 // GetLogProofURL generates an URL for the get log proof operation
 type GetLogProofURL struct {
+	TreeID string
+
 	FirstSize *int64
 	LastSize  int64
-	TreeID    *string
 
 	_basePath string
 	// avoid unkeyed usage
@@ -59,7 +61,14 @@ func (o *GetLogProofURL) SetBasePath(bp string) {
 func (o *GetLogProofURL) Build() (*url.URL, error) {
 	var _result url.URL
 
-	var _path = "/api/v1/log/proof"
+	var _path = "/{treeID}/api/v1/log/proof"
+
+	treeID := o.TreeID
+	if treeID != "" {
+		_path = strings.Replace(_path, "{treeID}", treeID, -1)
+	} else {
+		return nil, errors.New("treeId is required on GetLogProofURL")
+	}
 
 	_basePath := o._basePath
 	_result.Path = golangswaggerpaths.Join(_basePath, _path)
@@ -77,14 +86,6 @@ func (o *GetLogProofURL) Build() (*url.URL, error) {
 	lastSizeQ := swag.FormatInt64(o.LastSize)
 	if lastSizeQ != "" {
 		qs.Set("lastSize", lastSizeQ)
-	}
-
-	var treeIDQ string
-	if o.TreeID != nil {
-		treeIDQ = *o.TreeID
-	}
-	if treeIDQ != "" {
-		qs.Set("treeID", treeIDQ)
 	}
 
 	_result.RawQuery = qs.Encode()

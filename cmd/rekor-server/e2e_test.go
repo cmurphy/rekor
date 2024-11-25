@@ -36,8 +36,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sigstore/rekor/pkg/sharding"
-
 	"github.com/sigstore/rekor/pkg/util"
 )
 
@@ -165,7 +163,7 @@ func TestGetCLI(t *testing.T) {
 	out := util.RunCli(t, "upload", "--artifact", artifactPath, "--signature", sigPath, "--public-key", pubPath)
 	util.OutputContains(t, out, "Created entry at")
 
-	uuid, err := sharding.GetUUIDFromIDString(util.GetUUIDFromUploadOutput(t, out))
+	uuid := util.GetUUIDFGromUploadOutput(t, out)
 	if err != nil {
 		t.Error(err)
 	}
@@ -205,7 +203,7 @@ func TestGetCLI(t *testing.T) {
 
 	// Exercise GET with the new EntryID (TreeID + UUID)
 	tid := getTreeID(t)
-	entryID, err := sharding.CreateEntryIDFromParts(fmt.Sprintf("%x", tid), uuid)
+	entryID := uuid
 	if err != nil {
 		t.Error(err)
 	}
@@ -272,8 +270,7 @@ func TestVerifyNonExistentUUID(t *testing.T) {
 	// Check response code
 	tid := getTreeID(t)
 	h := sha256.Sum256([]byte("123"))
-	entryID, err := sharding.CreateEntryIDFromParts(fmt.Sprintf("%x", tid),
-		hex.EncodeToString(h[:]))
+	entryID := hex.EncodeToString(h[:])
 	if err != nil {
 		t.Fatal(err)
 	}

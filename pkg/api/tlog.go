@@ -22,22 +22,19 @@ import (
 	"net/http"
 
 	"github.com/go-openapi/runtime/middleware"
-	"github.com/google/trillian/types"
 	"github.com/spf13/viper"
 
 	"github.com/sigstore/rekor/pkg/generated/models"
 	"github.com/sigstore/rekor/pkg/generated/restapi/operations/tlog"
 	"github.com/sigstore/rekor/pkg/tessera"
-	"google.golang.org/grpc/codes"
 
-	"github.com/sigstore/rekor/pkg/trillianclient"
 	"github.com/sigstore/rekor/pkg/util"
 )
 
 // GetLogInfoHandler returns the current size of the tree and the STH
 func GetLogInfoHandler(params tlog.GetLogInfoParams) middleware.Responder {
 	ctx := params.HTTPRequest.Context()
-	tesseraStorage, err := api.tesseraClient.Connect(ctx, "test_tessera") // FIXME: tree name
+	tesseraStorage, err := api.tesseraClient.Connect(ctx, params.TreeID)
 	if err != nil {
 		return handleRekorAPIError(params, http.StatusInternalServerError, fmt.Errorf("tessera connection error: %w", err), "")
 	}
@@ -46,7 +43,7 @@ func GetLogInfoHandler(params tlog.GetLogInfoParams) middleware.Responder {
 		return handleRekorAPIError(params, http.StatusInternalServerError, err, err.Error())
 	}
 	scBytes, err := util.CreateAndSignCheckpoint(params.HTTPRequest.Context(),
-		viper.GetString("rekor_server.hostname"), api.logRanges.ActiveTreeID(), checkpoint.Size, checkpoint.Hash, api.signer)
+		viper.GetString("rekor_server.hostname"), params.TreeID, checkpoint.Size, checkpoint.Hash, api.signer)
 	if err != nil {
 		return handleRekorAPIError(params, http.StatusInternalServerError, err, sthGenerateError)
 	}
@@ -57,8 +54,7 @@ func GetLogInfoHandler(params tlog.GetLogInfoParams) middleware.Responder {
 		RootHash:       stringPointer(hexHash),
 		TreeSize:       &treeSize,
 		SignedTreeHead: stringPointer(string(scBytes)),
-		TreeID:         stringPointer(fmt.Sprintf("%d", api.logID)),
-		//InactiveShards: inactiveShards,
+		TreeID:         stringPointer(params.TreeID),
 	}
 
 	return tlog.NewGetLogInfoOK().WithPayload(&logInfo)
@@ -74,7 +70,7 @@ func GetLogProofHandler(params tlog.GetLogProofParams) middleware.Responder {
 		return handleRekorAPIError(params, http.StatusBadRequest, nil, fmt.Sprintf(firstSizeLessThanLastSize, *params.FirstSize, params.LastSize))
 	}
 	ctx := params.HTTPRequest.Context()
-	tesseraStorage, err := api.tesseraClient.Connect(ctx, "test_tessera") // FIXME: tree name
+	tesseraStorage, err := api.tesseraClient.Connect(ctx, params.TreeID)
 	if err != nil {
 		return handleRekorAPIError(params, http.StatusInternalServerError, fmt.Errorf("tessera connection error: %w", err), "")
 	}
@@ -113,36 +109,6 @@ func GetLogProofHandler(params tlog.GetLogProofParams) middleware.Responder {
 	}
 
 	return tlog.NewGetLogProofOK().WithPayload(&consistencyProof)
-}
-
-func inactiveShardLogInfo(ctx context.Context, tid int64) (*models.InactiveShardLogInfo, error) {
-	tc := trillianclient.NewTrillianClient(ctx, nil, tid) // FIXME:tessera
-	resp := tc.GetLatest(0)                               // FIXME:tessera
-	if resp.Status != codes.OK {
-		return nil, fmt.Errorf("resp code is %d", resp.Status)
-	}
-	result := resp.GetLatestResult
-
-	root := &types.LogRootV1{}
-	if err := root.UnmarshalBinary(result.SignedLogRoot.LogRoot); err != nil {
-		return nil, err
-	}
-
-	hashString := hex.EncodeToString(root.RootHash)
-	treeSize := int64(root.TreeSize)
-
-	scBytes, err := util.CreateAndSignCheckpoint(ctx, viper.GetString("rekor_server.hostname"), tid, root.TreeSize, root.RootHash, api.signer)
-	if err != nil {
-		return nil, err
-	}
-
-	m := models.InactiveShardLogInfo{
-		RootHash:       &hashString,
-		TreeSize:       &treeSize,
-		TreeID:         stringPointer(fmt.Sprintf("%d", tid)),
-		SignedTreeHead: stringPointer(string(scBytes)),
-	}
-	return &m, nil
 }
 
 // handlers for APIs that may be disabled in a given instance

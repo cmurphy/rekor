@@ -85,7 +85,7 @@ var logProofCmd = &cobra.Command{
 		params := tlog.NewGetLogProofParams()
 		params.FirstSize = &firstSize
 		params.LastSize = lastSize
-		params.TreeID = &treeID
+		params.TreeID = treeID
 		params.SetTimeout(viper.GetDuration("timeout"))
 
 		result, err := rekorClient.Tlog.GetLogProof(params)

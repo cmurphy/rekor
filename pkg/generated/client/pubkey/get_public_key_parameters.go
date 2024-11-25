@@ -79,9 +79,9 @@ type GetPublicKeyParams struct {
 
 	/* TreeID.
 
-	   The tree ID of the tree you wish to get a public key for
+	   The tree ID of the tree for which you wish to get a public key
 	*/
-	TreeID *string
+	TreeID string
 
 	timeout    time.Duration
 	Context    context.Context
@@ -137,13 +137,13 @@ func (o *GetPublicKeyParams) SetHTTPClient(client *http.Client) {
 }
 
 // WithTreeID adds the treeID to the get public key params
-func (o *GetPublicKeyParams) WithTreeID(treeID *string) *GetPublicKeyParams {
+func (o *GetPublicKeyParams) WithTreeID(treeID string) *GetPublicKeyParams {
 	o.SetTreeID(treeID)
 	return o
 }
 
 // SetTreeID adds the treeId to the get public key params
-func (o *GetPublicKeyParams) SetTreeID(treeID *string) {
+func (o *GetPublicKeyParams) SetTreeID(treeID string) {
 	o.TreeID = treeID
 }
 
@@ -155,21 +155,9 @@ func (o *GetPublicKeyParams) WriteToRequest(r runtime.ClientRequest, reg strfmt.
 	}
 	var res []error
 
-	if o.TreeID != nil {
-
-		// query param treeID
-		var qrTreeID string
-
-		if o.TreeID != nil {
-			qrTreeID = *o.TreeID
-		}
-		qTreeID := qrTreeID
-		if qTreeID != "" {
-
-			if err := r.SetQueryParam("treeID", qTreeID); err != nil {
-				return err
-			}
-		}
+	// path param treeID
+	if err := r.SetPathParam("treeID", o.TreeID); err != nil {
+		return err
 	}
 
 	if len(res) > 0 {

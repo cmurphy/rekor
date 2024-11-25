@@ -318,23 +318,23 @@ func (o *RekorServerAPI) initHandlerCache() {
 	if o.handlers["POST"] == nil {
 		o.handlers["POST"] = make(map[string]http.Handler)
 	}
-	o.handlers["POST"]["/api/v1/log/entries"] = entries.NewCreateLogEntry(o.context, o.EntriesCreateLogEntryHandler)
+	o.handlers["POST"]["/{treeID}/api/v1/log/entries"] = entries.NewCreateLogEntry(o.context, o.EntriesCreateLogEntryHandler)
 	if o.handlers["GET"] == nil {
 		o.handlers["GET"] = make(map[string]http.Handler)
 	}
-	o.handlers["GET"]["/api/v1/log/entries"] = entries.NewGetLogEntryByIndex(o.context, o.EntriesGetLogEntryByIndexHandler)
+	o.handlers["GET"]["/{treeID}/api/v1/log/entries"] = entries.NewGetLogEntryByIndex(o.context, o.EntriesGetLogEntryByIndexHandler)
 	if o.handlers["GET"] == nil {
 		o.handlers["GET"] = make(map[string]http.Handler)
 	}
-	o.handlers["GET"]["/api/v1/log"] = tlog.NewGetLogInfo(o.context, o.TlogGetLogInfoHandler)
+	o.handlers["GET"]["/{treeID}/api/v1/log"] = tlog.NewGetLogInfo(o.context, o.TlogGetLogInfoHandler)
 	if o.handlers["GET"] == nil {
 		o.handlers["GET"] = make(map[string]http.Handler)
 	}
-	o.handlers["GET"]["/api/v1/log/proof"] = tlog.NewGetLogProof(o.context, o.TlogGetLogProofHandler)
+	o.handlers["GET"]["/{treeID}/api/v1/log/proof"] = tlog.NewGetLogProof(o.context, o.TlogGetLogProofHandler)
 	if o.handlers["GET"] == nil {
 		o.handlers["GET"] = make(map[string]http.Handler)
 	}
-	o.handlers["GET"]["/api/v1/log/publicKey"] = pubkey.NewGetPublicKey(o.context, o.PubkeyGetPublicKeyHandler)
+	o.handlers["GET"]["/{treeID}/api/v1/log/publicKey"] = pubkey.NewGetPublicKey(o.context, o.PubkeyGetPublicKeyHandler)
 }
 
 // Serve creates a http handler to serve the API over HTTP

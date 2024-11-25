@@ -25,12 +25,15 @@ import (
 	"errors"
 	"net/url"
 	golangswaggerpaths "path"
+	"strings"
 
 	"github.com/go-openapi/swag"
 )
 
 // GetLogInfoURL generates an URL for the get log info operation
 type GetLogInfoURL struct {
+	TreeID string
+
 	Stable *bool
 
 	_basePath string
@@ -57,7 +60,14 @@ func (o *GetLogInfoURL) SetBasePath(bp string) {
 func (o *GetLogInfoURL) Build() (*url.URL, error) {
 	var _result url.URL
 
-	var _path = "/api/v1/log"
+	var _path = "/{treeID}/api/v1/log"
+
+	treeID := o.TreeID
+	if treeID != "" {
+		_path = strings.Replace(_path, "{treeID}", treeID, -1)
+	} else {
+		return nil, errors.New("treeId is required on GetLogInfoURL")
+	}
 
 	_basePath := o._basePath
 	_result.Path = golangswaggerpaths.Join(_basePath, _path)

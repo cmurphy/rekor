@@ -29,7 +29,7 @@ produces:
   - application/json
 
 paths:
-  /api/v1/log:
+  /{treeID}/api/v1/log:
     get:
       summary: Get information about the current state of the transparency log
       description: Returns the current root hash and size of the merkle tree used to store the log entries.
@@ -37,6 +37,11 @@ paths:
       tags:
         - tlog
       parameters:
+        - in: path
+          name: treeID
+          type: string
+          required: true
+          description: The tree ID of the tree about which you wish to get information
         - in: query
           name: stable
           type: boolean
@@ -50,7 +55,7 @@ paths:
         default:
           $ref: '#/responses/InternalServerError'
 
-  /api/v1/log/publicKey:
+  /{treeID}/api/v1/log/publicKey:
     get:
       summary: Retrieve the public key that can be used to validate the signed tree head
       description: Returns the public key that can be used to validate the signed tree head
@@ -58,11 +63,11 @@ paths:
       tags:
         - pubkey
       parameters:
-        - in: query
+        - in: path
           name: treeID
           type: string
-          pattern: '^[0-9]+$'
-          description: The tree ID of the tree you wish to get a public key for
+          required: true
+          description: The tree ID of the tree for which you wish to get a public key
       produces:
         - application/x-pem-file
       responses:
@@ -73,7 +78,7 @@ paths:
         default:
           $ref: '#/responses/InternalServerError'
 
-  /api/v1/log/proof:
+  /{treeID}/api/v1/log/proof:
     get:
       summary: Get information required to generate a consistency proof for the transparency log
       description: Returns a list of hashes for specified tree sizes that can be used to confirm the consistency of the transparency log
@@ -95,10 +100,10 @@ paths:
           required: true
           minimum: 1
           description: The size of the tree that you wish to prove consistency to
-        - in: query
+        - in: path
           name: treeID
           type: string
-          pattern: '^[0-9]+$'
+          required: true
           description: The tree ID of the tree that you wish to prove consistency for
       responses:
         200:
@@ -110,7 +115,7 @@ paths:
         default:
           $ref: '#/responses/InternalServerError'
 
-  /api/v1/log/entries:
+  /{treeID}/api/v1/log/entries:
     post:
       summary: Creates an entry in the transparency log
       description: >
@@ -120,6 +125,11 @@ paths:
       tags:
         - entries
       parameters:
+        - in: path
+          name: treeID
+          type: string
+          required: true
+          description: The tree ID of the tree in which you wish to create an entry
         - in: body
           name: proposedEntry
           schema:
@@ -150,6 +160,11 @@ paths:
       tags:
         - entries
       parameters:
+        - in: path
+          name: treeID
+          type: string
+          required: true
+          description: The tree ID of the tree from which you wish to get an entry
         - in: query
           name: logIndex
           type: integer
@@ -418,35 +433,7 @@ definitions:
         type: string
         description: The current treeID
         pattern: '^[0-9]+$'
-      inactiveShards:
-        type: array
-        items:
-          $ref: '#/definitions/InactiveShardLogInfo'
 
-    required:
-      - rootHash
-      - treeSize
-      - signedTreeHead
-      - treeID
-  InactiveShardLogInfo:
-    type: object
-    properties:
-      rootHash:
-        type: string
-        description: The current hash value stored at the root of the merkle tree
-        pattern: '^[0-9a-fA-F]{64}$'
-      treeSize:
-        type: integer
-        description: The current number of nodes in the merkle tree
-        minimum: 1
-      signedTreeHead:
-        type: string
-        format: signedCheckpoint
-        description: The current signed tree head
-      treeID:
-        type: string
-        description: The current treeID
-        pattern: '^[0-9]+$'
     required:
       - rootHash
       - treeSize

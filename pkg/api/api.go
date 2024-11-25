@@ -34,7 +34,6 @@ import (
 
 	"github.com/sigstore/rekor/pkg/log"
 	"github.com/sigstore/rekor/pkg/pubsub"
-	"github.com/sigstore/rekor/pkg/sharding"
 	"github.com/sigstore/rekor/pkg/signer"
 	"github.com/sigstore/rekor/pkg/tessera"
 	"github.com/sigstore/rekor/pkg/witness"
@@ -89,8 +88,6 @@ func dial(rpcServer string) (*grpc.ClientConn, error) {
 
 type API struct {
 	tesseraClient *tessera.TesseraClient
-	logID         int64
-	logRanges     sharding.LogRanges
 	pubkey        string // PEM encoded public key
 	pubkeyHash    string // SHA256 hash of DER-encoded public key
 	signer        signature.Signer
@@ -101,41 +98,31 @@ type API struct {
 	newEntryPublisher pubsub.Publisher
 }
 
-func mysqlDSN() string {
-	dsn := fmt.Sprintf("tcp(%s:%d)", viper.GetString("tessera.mysql.address"), viper.GetUint16("tessera.mysql.port"))
-	user, pass := viper.GetString("tessera.mysql.user"), viper.GetString("tessera.mysql.password")
+func MySQLURI(address, user, pass string, port uint16) string {
+	uri := fmt.Sprintf("tcp(%s:%d)", address, port)
 	if pass != "" {
 		pass = fmt.Sprintf(":%s", pass)
 	}
 	if user != "" {
-		dsn = fmt.Sprintf("%s%s@%s", user, pass, dsn)
+		uri = fmt.Sprintf("%s%s@%s", user, pass, uri)
 	}
-	return dsn
+	return uri
 }
 
-func NewAPI(treeID uint) (*API, error) {
+func NewAPI() (*API, error) {
 	ctx := context.Background()
 
-	shardingConfig := viper.GetString("trillian_log_server.sharding_config")
-	ranges, err := sharding.NewLogRanges(ctx, nil, shardingConfig, treeID)
-	if err != nil {
-		return nil, fmt.Errorf("unable get sharding details from sharding config: %w", err)
-	}
-
-	tid := int64(treeID)
-	if tid == 0 {
-		log.Logger.Info("No tree ID specified, attempting to create a new tree")
-		tid = 42
-	}
-	dsn := mysqlDSN()
+	uri := MySQLURI(
+		viper.GetString("tessera.mysql.address"),
+		viper.GetString("tessera.mysql.user"),
+		viper.GetString("tessera.mysql.password"),
+		viper.GetUint16("tessera.mysql.port"),
+	)
 	lifetime, maxOpen, maxIdle := viper.GetDuration("tessera.mysql.conn_max_lifetime"), viper.GetInt("tessera.mysql.max_open_connections"), viper.GetInt("tessera.mysql.max_idle_connections")
-	cfg := tessera.NewDBConfig(dsn, lifetime, maxOpen, maxIdle)
-	treeName := "test_tessera"
-	if err := cfg.Init(ctx, treeName); err != nil {
-		return nil, err
-	}
-	log.Logger.Infof("Starting Rekor server with active tree %v", tid)
-	ranges.SetActive(tid)
+	cfg := tessera.NewDBConfig(uri, lifetime, maxOpen, maxIdle)
+	tesseraClient := tessera.NewTesseraClient(&cfg)
+
+	log.Logger.Infof("Starting Rekor server")
 
 	rekorSigner, err := signer.New(ctx, viper.GetString("rekor_server.signer"),
 		viper.GetString("rekor_server.signer-passwd"))
@@ -166,12 +153,9 @@ func NewAPI(treeID uint) (*API, error) {
 		log.ContextLogger(ctx).Infof("Initialized new entry event publisher: %s", p)
 	}
 
-	tesseraClient := tessera.NewTesseraClient(&cfg)
 	return &API{
 		// Transparency Log Stuff
 		tesseraClient: &tesseraClient,
-		logID:         tid,
-		logRanges:     ranges,
 		// Signing/verifying fields
 		pubkey:     string(pubkey),
 		pubkeyHash: hex.EncodeToString(pubkeyHashBytes[:]),
@@ -186,17 +170,17 @@ var (
 	redisClient *redis.Client
 )
 
-func ConfigureAPI(treeID uint) {
+func ConfigureAPI() {
 	var err error
 
-	api, err = NewAPI(treeID)
+	api, err = NewAPI()
 	if err != nil {
 		log.Logger.Panic(err)
 	}
 
 	if viper.GetBool("enable_stable_checkpoint") {
 		redisClient = NewRedisClient()
-		checkpointPublisher := witness.NewCheckpointPublisher(context.Background(), api.tesseraClient, api.logRanges.ActiveTreeID(),
+		checkpointPublisher := witness.NewCheckpointPublisher(context.Background(), api.tesseraClient, 0,
 			viper.GetString("rekor_server.hostname"), api.signer, redisClient, viper.GetUint("publish_frequency"), CheckpointPublishCount)
 
 		// create context to cancel goroutine on server shutdown

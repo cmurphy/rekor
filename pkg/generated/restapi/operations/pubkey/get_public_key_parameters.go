@@ -25,10 +25,8 @@ import (
 	"net/http"
 
 	"github.com/go-openapi/errors"
-	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/go-openapi/strfmt"
-	"github.com/go-openapi/validate"
 )
 
 // NewGetPublicKeyParams creates a new GetPublicKeyParams object
@@ -48,11 +46,11 @@ type GetPublicKeyParams struct {
 	// HTTP Request Object
 	HTTPRequest *http.Request `json:"-"`
 
-	/*The tree ID of the tree you wish to get a public key for
-	  Pattern: ^[0-9]+$
-	  In: query
+	/*The tree ID of the tree for which you wish to get a public key
+	  Required: true
+	  In: path
 	*/
-	TreeID *string
+	TreeID string
 }
 
 // BindRequest both binds and validates a request, it assumes that complex things implement a Validatable(strfmt.Registry) error interface
@@ -64,10 +62,8 @@ func (o *GetPublicKeyParams) BindRequest(r *http.Request, route *middleware.Matc
 
 	o.HTTPRequest = r
 
-	qs := runtime.Values(r.URL.Query())
-
-	qTreeID, qhkTreeID, _ := qs.GetOK("treeID")
-	if err := o.bindTreeID(qTreeID, qhkTreeID, route.Formats); err != nil {
+	rTreeID, rhkTreeID, _ := route.Params.GetOK("treeID")
+	if err := o.bindTreeID(rTreeID, rhkTreeID, route.Formats); err != nil {
 		res = append(res, err)
 	}
 	if len(res) > 0 {
@@ -76,34 +72,16 @@ func (o *GetPublicKeyParams) BindRequest(r *http.Request, route *middleware.Matc
 	return nil
 }
 
-// bindTreeID binds and validates parameter TreeID from query.
+// bindTreeID binds and validates parameter TreeID from path.
 func (o *GetPublicKeyParams) bindTreeID(rawData []string, hasKey bool, formats strfmt.Registry) error {
 	var raw string
 	if len(rawData) > 0 {
 		raw = rawData[len(rawData)-1]
 	}
 
-	// Required: false
-	// AllowEmptyValue: false
-
-	if raw == "" { // empty values pass all other validations
-		return nil
-	}
-	o.TreeID = &raw
-
-	if err := o.validateTreeID(formats); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// validateTreeID carries on validations for parameter TreeID
-func (o *GetPublicKeyParams) validateTreeID(formats strfmt.Registry) error {
-
-	if err := validate.Pattern("treeID", "query", *o.TreeID, `^[0-9]+$`); err != nil {
-		return err
-	}
+	// Required: true
+	// Parameter is provided by construction from the route
+	o.TreeID = raw
 
 	return nil
 }

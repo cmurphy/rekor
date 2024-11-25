@@ -121,7 +121,7 @@ func (c *CheckpointPublisher) publish(sTreeID string) {
 	}
 
 	// sign checkpoint with Rekor private key
-	signedCheckpoint, err := util.CreateAndSignCheckpoint(c.ctx, c.hostname, c.treeID, checkpoint.Size, checkpoint.Hash, c.signer)
+	signedCheckpoint, err := util.CreateAndSignCheckpoint(c.ctx, c.hostname, sTreeID, checkpoint.Size, checkpoint.Hash, c.signer)
 	if err != nil {
 		c.reqCounter.With(
 			map[string]string{

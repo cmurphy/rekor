@@ -70,10 +70,10 @@ type GetLogProofParams struct {
 	*/
 	LastSize int64
 	/*The tree ID of the tree that you wish to prove consistency for
-	  Pattern: ^[0-9]+$
-	  In: query
+	  Required: true
+	  In: path
 	*/
-	TreeID *string
+	TreeID string
 }
 
 // BindRequest both binds and validates a request, it assumes that complex things implement a Validatable(strfmt.Registry) error interface
@@ -97,8 +97,8 @@ func (o *GetLogProofParams) BindRequest(r *http.Request, route *middleware.Match
 		res = append(res, err)
 	}
 
-	qTreeID, qhkTreeID, _ := qs.GetOK("treeID")
-	if err := o.bindTreeID(qTreeID, qhkTreeID, route.Formats); err != nil {
+	rTreeID, rhkTreeID, _ := route.Params.GetOK("treeID")
+	if err := o.bindTreeID(rTreeID, rhkTreeID, route.Formats); err != nil {
 		res = append(res, err)
 	}
 	if len(res) > 0 {
@@ -185,34 +185,16 @@ func (o *GetLogProofParams) validateLastSize(formats strfmt.Registry) error {
 	return nil
 }
 
-// bindTreeID binds and validates parameter TreeID from query.
+// bindTreeID binds and validates parameter TreeID from path.
 func (o *GetLogProofParams) bindTreeID(rawData []string, hasKey bool, formats strfmt.Registry) error {
 	var raw string
 	if len(rawData) > 0 {
 		raw = rawData[len(rawData)-1]
 	}
 
-	// Required: false
-	// AllowEmptyValue: false
-
-	if raw == "" { // empty values pass all other validations
-		return nil
-	}
-	o.TreeID = &raw
-
-	if err := o.validateTreeID(formats); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// validateTreeID carries on validations for parameter TreeID
-func (o *GetLogProofParams) validateTreeID(formats strfmt.Registry) error {
-
-	if err := validate.Pattern("treeID", "query", *o.TreeID, `^[0-9]+$`); err != nil {
-		return err
-	}
+	// Required: true
+	// Parameter is provided by construction from the route
+	o.TreeID = raw
 
 	return nil
 }

@@ -55,6 +55,11 @@ type GetLogEntryByIndexParams struct {
 	  In: query
 	*/
 	LogIndex int64
+	/*The tree ID of the tree from which you wish to get an entry
+	  Required: true
+	  In: path
+	*/
+	TreeID string
 }
 
 // BindRequest both binds and validates a request, it assumes that complex things implement a Validatable(strfmt.Registry) error interface
@@ -70,6 +75,11 @@ func (o *GetLogEntryByIndexParams) BindRequest(r *http.Request, route *middlewar
 
 	qLogIndex, qhkLogIndex, _ := qs.GetOK("logIndex")
 	if err := o.bindLogIndex(qLogIndex, qhkLogIndex, route.Formats); err != nil {
+		res = append(res, err)
+	}
+
+	rTreeID, rhkTreeID, _ := route.Params.GetOK("treeID")
+	if err := o.bindTreeID(rTreeID, rhkTreeID, route.Formats); err != nil {
 		res = append(res, err)
 	}
 	if len(res) > 0 {
@@ -114,6 +124,20 @@ func (o *GetLogEntryByIndexParams) validateLogIndex(formats strfmt.Registry) err
 	if err := validate.MinimumInt("logIndex", "query", o.LogIndex, 0, false); err != nil {
 		return err
 	}
+
+	return nil
+}
+
+// bindTreeID binds and validates parameter TreeID from path.
+func (o *GetLogEntryByIndexParams) bindTreeID(rawData []string, hasKey bool, formats strfmt.Registry) error {
+	var raw string
+	if len(rawData) > 0 {
+		raw = rawData[len(rawData)-1]
+	}
+
+	// Required: true
+	// Parameter is provided by construction from the route
+	o.TreeID = raw
 
 	return nil
 }

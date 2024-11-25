@@ -79,11 +79,6 @@ var logInfoCmd = &cobra.Command{
 
 		logInfo := result.GetPayload()
 
-		// Verify inactive shards
-		if err := verifyInactiveTrees(ctx, rekorClient, serverURL, logInfo.InactiveShards); err != nil {
-			return nil, err
-		}
-
 		// Verify the active tree
 		sth := util.SignedCheckpoint{}
 		signedTreeHead := swag.StringValue(logInfo.SignedTreeHead)
@@ -98,28 +93,12 @@ var logInfoCmd = &cobra.Command{
 
 		cmdOutput := &logInfoCmdOutput{
 			ActiveTreeSize: swag.Int64Value(logInfo.TreeSize),
-			TotalTreeSize:  totalTreeSize(logInfo, logInfo.InactiveShards),
+			TotalTreeSize:  totalTreeSize(logInfo),
 			RootHash:       swag.StringValue(logInfo.RootHash),
 			TreeID:         swag.StringValue(logInfo.TreeID),
 		}
 		return cmdOutput, nil
 	}),
-}
-
-func verifyInactiveTrees(ctx context.Context, rekorClient *rclient.Rekor, serverURL string, inactiveShards []*models.InactiveShardLogInfo) error {
-	if inactiveShards == nil {
-		return nil
-	}
-	log.CliLogger.Infof("Validating inactive shards...")
-	for _, shard := range inactiveShards {
-		signedTreeHead := swag.StringValue(shard.SignedTreeHead)
-		treeID := swag.StringValue(shard.TreeID)
-		if err := verifyTree(ctx, rekorClient, signedTreeHead, serverURL, treeID); err != nil {
-			return fmt.Errorf("verifying inactive shard with ID %s: %w", treeID, err)
-		}
-	}
-	log.CliLogger.Infof("Successfully validated inactive shards")
-	return nil
 }
 
 func verifyTree(ctx context.Context, rekorClient *rclient.Rekor, signedTreeHead, serverURL, treeID string) error {
@@ -184,12 +163,8 @@ func loadVerifier(rekorClient *rclient.Rekor) (signature.Verifier, error) {
 	return signature.LoadVerifier(pub, crypto.SHA256)
 }
 
-func totalTreeSize(activeShard *models.LogInfo, inactiveShards []*models.InactiveShardLogInfo) int64 {
-	total := swag.Int64Value(activeShard.TreeSize)
-	for _, i := range inactiveShards {
-		total += swag.Int64Value(i.TreeSize)
-	}
-	return total
+func totalTreeSize(activeShard *models.LogInfo) int64 {
+	return swag.Int64Value(activeShard.TreeSize)
 }
 
 func init() {

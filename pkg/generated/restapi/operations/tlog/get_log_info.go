@@ -46,7 +46,7 @@ func NewGetLogInfo(ctx *middleware.Context, handler GetLogInfoHandler) *GetLogIn
 }
 
 /*
-	GetLogInfo swagger:route GET /api/v1/log tlog getLogInfo
+	GetLogInfo swagger:route GET /{treeID}/api/v1/log tlog getLogInfo
 
 # Get information about the current state of the transparency log
 

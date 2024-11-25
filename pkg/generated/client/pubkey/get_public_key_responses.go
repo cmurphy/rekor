@@ -104,12 +104,12 @@ func (o *GetPublicKeyOK) Code() int {
 
 func (o *GetPublicKeyOK) Error() string {
 	payload, _ := json.Marshal(o.Payload)
-	return fmt.Sprintf("[GET /api/v1/log/publicKey][%d] getPublicKeyOK %s", 200, payload)
+	return fmt.Sprintf("[GET /{treeID}/api/v1/log/publicKey][%d] getPublicKeyOK %s", 200, payload)
 }
 
 func (o *GetPublicKeyOK) String() string {
 	payload, _ := json.Marshal(o.Payload)
-	return fmt.Sprintf("[GET /api/v1/log/publicKey][%d] getPublicKeyOK %s", 200, payload)
+	return fmt.Sprintf("[GET /{treeID}/api/v1/log/publicKey][%d] getPublicKeyOK %s", 200, payload)
 }
 
 func (o *GetPublicKeyOK) GetPayload() string {
@@ -176,12 +176,12 @@ func (o *GetPublicKeyDefault) Code() int {
 
 func (o *GetPublicKeyDefault) Error() string {
 	payload, _ := json.Marshal(o.Payload)
-	return fmt.Sprintf("[GET /api/v1/log/publicKey][%d] getPublicKey default %s", o._statusCode, payload)
+	return fmt.Sprintf("[GET /{treeID}/api/v1/log/publicKey][%d] getPublicKey default %s", o._statusCode, payload)
 }
 
 func (o *GetPublicKeyDefault) String() string {
 	payload, _ := json.Marshal(o.Payload)
-	return fmt.Sprintf("[GET /api/v1/log/publicKey][%d] getPublicKey default %s", o._statusCode, payload)
+	return fmt.Sprintf("[GET /{treeID}/api/v1/log/publicKey][%d] getPublicKey default %s", o._statusCode, payload)
 }
 
 func (o *GetPublicKeyDefault) GetPayload() *models.Error {

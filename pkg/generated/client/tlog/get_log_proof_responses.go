@@ -110,12 +110,12 @@ func (o *GetLogProofOK) Code() int {
 
 func (o *GetLogProofOK) Error() string {
 	payload, _ := json.Marshal(o.Payload)
-	return fmt.Sprintf("[GET /api/v1/log/proof][%d] getLogProofOK %s", 200, payload)
+	return fmt.Sprintf("[GET /{treeID}/api/v1/log/proof][%d] getLogProofOK %s", 200, payload)
 }
 
 func (o *GetLogProofOK) String() string {
 	payload, _ := json.Marshal(o.Payload)
-	return fmt.Sprintf("[GET /api/v1/log/proof][%d] getLogProofOK %s", 200, payload)
+	return fmt.Sprintf("[GET /{treeID}/api/v1/log/proof][%d] getLogProofOK %s", 200, payload)
 }
 
 func (o *GetLogProofOK) GetPayload() *models.ConsistencyProof {
@@ -180,12 +180,12 @@ func (o *GetLogProofBadRequest) Code() int {
 
 func (o *GetLogProofBadRequest) Error() string {
 	payload, _ := json.Marshal(o.Payload)
-	return fmt.Sprintf("[GET /api/v1/log/proof][%d] getLogProofBadRequest %s", 400, payload)
+	return fmt.Sprintf("[GET /{treeID}/api/v1/log/proof][%d] getLogProofBadRequest %s", 400, payload)
 }
 
 func (o *GetLogProofBadRequest) String() string {
 	payload, _ := json.Marshal(o.Payload)
-	return fmt.Sprintf("[GET /api/v1/log/proof][%d] getLogProofBadRequest %s", 400, payload)
+	return fmt.Sprintf("[GET /{treeID}/api/v1/log/proof][%d] getLogProofBadRequest %s", 400, payload)
 }
 
 func (o *GetLogProofBadRequest) GetPayload() *models.Error {
@@ -254,12 +254,12 @@ func (o *GetLogProofDefault) Code() int {
 
 func (o *GetLogProofDefault) Error() string {
 	payload, _ := json.Marshal(o.Payload)
-	return fmt.Sprintf("[GET /api/v1/log/proof][%d] getLogProof default %s", o._statusCode, payload)
+	return fmt.Sprintf("[GET /{treeID}/api/v1/log/proof][%d] getLogProof default %s", o._statusCode, payload)
 }
 
 func (o *GetLogProofDefault) String() string {
 	payload, _ := json.Marshal(o.Payload)
-	return fmt.Sprintf("[GET /api/v1/log/proof][%d] getLogProof default %s", o._statusCode, payload)
+	return fmt.Sprintf("[GET /{treeID}/api/v1/log/proof][%d] getLogProof default %s", o._statusCode, payload)
 }
 
 func (o *GetLogProofDefault) GetPayload() *models.Error {

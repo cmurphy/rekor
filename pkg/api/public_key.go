@@ -20,18 +20,12 @@ import (
 	"net/http"
 
 	"github.com/go-openapi/runtime/middleware"
-	"github.com/go-openapi/swag"
 	"github.com/sigstore/rekor/pkg/generated/models"
 	"github.com/sigstore/rekor/pkg/generated/restapi/operations/pubkey"
 )
 
 func GetPublicKeyHandler(params pubkey.GetPublicKeyParams) middleware.Responder {
-	treeID := swag.StringValue(params.TreeID)
-	pk, err := api.logRanges.PublicKey(api.pubkey, treeID)
-	if err != nil {
-		return handleRekorAPIError(params, http.StatusBadRequest, err, "")
-	}
-	return pubkey.NewGetPublicKeyOK().WithPayload(pk)
+	return pubkey.NewGetPublicKeyOK().WithPayload(api.pubkey)
 }
 
 // handlers for APIs that may be disabled in a given instance

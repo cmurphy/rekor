@@ -90,7 +90,7 @@ func (a *Client) CreateLogEntry(params *CreateLogEntryParams, opts ...ClientOpti
 	op := &runtime.ClientOperation{
 		ID:                 "createLogEntry",
 		Method:             "POST",
-		PathPattern:        "/api/v1/log/entries",
+		PathPattern:        "/{treeID}/api/v1/log/entries",
 		ProducesMediaTypes: []string{"application/json"},
 		ConsumesMediaTypes: []string{"application/json"},
 		Schemes:            []string{"http"},
@@ -127,7 +127,7 @@ func (a *Client) GetLogEntryByIndex(params *GetLogEntryByIndexParams, opts ...Cl
 	op := &runtime.ClientOperation{
 		ID:                 "getLogEntryByIndex",
 		Method:             "GET",
-		PathPattern:        "/api/v1/log/entries",
+		PathPattern:        "/{treeID}/api/v1/log/entries",
 		ProducesMediaTypes: []string{"application/json"},
 		ConsumesMediaTypes: []string{"application/json"},
 		Schemes:            []string{"http"},
