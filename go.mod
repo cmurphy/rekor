@@ -52,14 +52,9 @@ require (
 	cloud.google.com/go/profiler v0.4.1
 	cloud.google.com/go/pubsub v1.45.1
 	github.com/AdamKorcz/go-fuzz-headers-1 v0.0.0-20230919221257-8b5d3ce2d11d
-	github.com/DATA-DOG/go-sqlmock v1.5.2
 	github.com/cyberphone/json-canonicalization v0.0.0-20220623050100-57a0ce2678a7
-	github.com/go-redis/redismock/v9 v9.2.0
-	github.com/go-sql-driver/mysql v1.8.1
 	github.com/hashicorp/go-cleanhttp v0.5.2
 	github.com/hashicorp/go-retryablehttp v0.7.7
-	github.com/jmoiron/sqlx v1.4.0
-	github.com/redis/go-redis/v9 v9.6.1
 	github.com/sassoftware/relic/v7 v7.6.2
 	github.com/sigstore/protobuf-specs v0.3.2
 	github.com/sigstore/sigstore/pkg/signature/kms/aws v1.8.8
@@ -100,13 +95,13 @@ require (
 	github.com/aws/smithy-go v1.22.1 // indirect
 	github.com/cavaliergopher/cpio v1.0.1 // indirect
 	github.com/cenkalti/backoff/v3 v3.2.2 // indirect
-	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
 	github.com/globocom/go-buffer v1.2.2 // indirect
 	github.com/go-jose/go-jose/v3 v3.0.3 // indirect
 	github.com/go-jose/go-jose/v4 v4.0.2 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
+	github.com/go-sql-driver/mysql v1.8.1 // indirect
 	github.com/golang-jwt/jwt/v5 v5.2.1 // indirect
 	github.com/google/pprof v0.0.0-20240528025155-186aa0362fba // indirect
 	github.com/google/s2a-go v0.1.8 // indirect

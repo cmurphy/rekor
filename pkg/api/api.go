@@ -26,7 +26,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/redis/go-redis/v9"
 	"github.com/spf13/viper"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -165,8 +164,7 @@ func NewAPI() (*API, error) {
 }
 
 var (
-	api         *API
-	redisClient *redis.Client
+	api *API
 )
 
 func ConfigureAPI() {
@@ -176,25 +174,6 @@ func ConfigureAPI() {
 	if err != nil {
 		log.Logger.Panic(err)
 	}
-}
-
-func NewRedisClient() *redis.Client {
-
-	opts := &redis.Options{
-		Addr:     fmt.Sprintf("%v:%v", viper.GetString("redis_server.address"), viper.GetUint64("redis_server.port")),
-		Password: viper.GetString("redis_server.password"),
-		Network:  "tcp",
-		DB:       0, // default DB
-	}
-
-	// #nosec G402
-	if viper.GetBool("redis_server.enable-tls") {
-		opts.TLSConfig = &tls.Config{
-			InsecureSkipVerify: viper.GetBool("redis_server.insecure-skip-verify"), //nolint: gosec
-		}
-	}
-
-	return redis.NewClient(opts)
 }
 
 func StopAPI() {
