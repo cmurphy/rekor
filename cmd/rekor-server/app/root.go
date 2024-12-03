@@ -86,6 +86,8 @@ func init() {
 	rootCmd.PersistentFlags().Duration("tessera.mysql.conn_max_lifetime", 0*time.Second, "Tessera MySQL maximum connection lifetime")
 	rootCmd.PersistentFlags().Int("tessera.mysql.max_open_connections", 0, "Tessera MySQL maximum open connections")
 	rootCmd.PersistentFlags().Int("tessera.mysql.max_idle_connections", 0, "Tessera MySQL maximum idle connections")
+	rootCmd.PersistentFlags().Duration("tessera.batch_max_age", 250*time.Millisecond, "Tessera batch max age")
+	rootCmd.PersistentFlags().Uint("tessera.batch_max_size", 256, "Tessera batch max size")
 
 	hostname, err := os.Hostname()
 	if err != nil {

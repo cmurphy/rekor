@@ -42,12 +42,24 @@ func (d *dbConfig) Connect(dbName string) (*sql.DB, error) {
 	return db, nil
 }
 
-type TesseraClient struct {
-	dbConfig *dbConfig
+type batchOptions struct {
+	maxAge  time.Duration
+	maxSize uint
 }
 
-func NewTesseraClient(dbConfig *dbConfig) TesseraClient {
-	return TesseraClient{dbConfig}
+type TesseraClient struct {
+	dbConfig     *dbConfig
+	batchOptions batchOptions
+}
+
+func NewTesseraClient(dbConfig *dbConfig, maxAge time.Duration, maxSize uint) TesseraClient {
+	return TesseraClient{
+		dbConfig: dbConfig,
+		batchOptions: batchOptions{
+			maxAge:  maxAge,
+			maxSize: maxSize,
+		},
+	}
 }
 
 type noopSigner struct{}
@@ -63,7 +75,7 @@ func (t *TesseraClient) Connect(ctx context.Context, treeID string) (*mysql.Stor
 	}
 	// Rekor signs the checkpoints itself, no need to create a separate checkpoint signer for Tessera
 	signer := noopSigner{}
-	storage, err := mysql.New(ctx, db, tessera.WithCheckpointSigner(signer))
+	storage, err := mysql.New(ctx, db, tessera.WithCheckpointSigner(signer), tessera.WithBatching(t.batchOptions.maxSize, t.batchOptions.maxAge))
 	if err != nil {
 		return nil, fmt.Errorf("tessera client connection: %w", err)
 	}

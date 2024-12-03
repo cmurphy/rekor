@@ -69,7 +69,7 @@ func NewAPI() (*API, error) {
 	)
 	lifetime, maxOpen, maxIdle := viper.GetDuration("tessera.mysql.conn_max_lifetime"), viper.GetInt("tessera.mysql.max_open_connections"), viper.GetInt("tessera.mysql.max_idle_connections")
 	cfg := tessera.NewDBConfig(uri, lifetime, maxOpen, maxIdle)
-	tesseraClient := tessera.NewTesseraClient(&cfg)
+	tesseraClient := tessera.NewTesseraClient(&cfg, viper.GetDuration("tessera.batch_max_age"), viper.GetUint("tessera.batch_max_size"))
 
 	log.Logger.Infof("Starting Rekor server")
 
