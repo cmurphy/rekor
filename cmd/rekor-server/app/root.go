@@ -79,6 +79,8 @@ func init() {
 	rootCmd.PersistentFlags().String("gcp_cloud_profiling.project_id", "", "GCP project ID")
 	rootCmd.PersistentFlags().Bool("gcp_cloud_profiling.enable_oc_telemetry", false, "enable Profiler spans in Cloud Tracing & Cloud Monitoring")
 
+	rootCmd.PersistentFlags().String("tessera_storage", "posix", "Tessera storage backend, one of posix, mysql")
+	rootCmd.PersistentFlags().String("tessera.posix.storage_dir", "", "Tessera POSIX root directory")
 	rootCmd.PersistentFlags().String("tessera.mysql.address", "127.0.0.1", "Tessera MySQL server address")
 	rootCmd.PersistentFlags().Uint16("tessera.mysql.port", 3306, "Tessera MySQL server port")
 	rootCmd.PersistentFlags().String("tessera.mysql.user", "", "Tessera MySQL server username")

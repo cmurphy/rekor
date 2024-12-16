@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"time"
 
 	"github.com/cyberphone/json-canonicalization/go/src/webpki.org/jsoncanonicalizer"
 	"github.com/go-openapi/runtime/middleware"
@@ -99,8 +100,10 @@ func createLogEntry(params entries.CreateLogEntryParams) (models.LogEntry, middl
 	if err != nil {
 		return nil, handleRekorAPIError(params, http.StatusInternalServerError, err, tesseraCommunicationError)
 	}
+	await := tessera.NewIntegrationAwaiter(ctx, tesseraStorage.ReadCheckpoint, time.Second)
 
-	idx, err := tesseraStorage.Add(params.HTTPRequest.Context(), tesseraEntry)()
+	future := tesseraStorage.Add(params.HTTPRequest.Context(), tesseraEntry)
+	idx, checkpointBody, err := await.Await(ctx, future)
 	if err != nil {
 		return nil, handleRekorAPIError(params, http.StatusInternalServerError, err, tesseraUnexpectedResult)
 	}
@@ -119,9 +122,9 @@ func createLogEntry(params entries.CreateLogEntryParams) (models.LogEntry, middl
 		return nil, handleRekorAPIError(params, http.StatusInternalServerError, err, sthGenerateError)
 	}
 
-	checkpoint, err := rekortessera.GetLatestCheckpoint(ctx, tesseraStorage)
+	checkpoint, err := rekortessera.UnmarshalCheckpoint(checkpointBody)
 	if err != nil {
-		return nil, handleRekorAPIError(params, http.StatusInternalServerError, err, err.Error())
+		return nil, handleRekorAPIError(params, http.StatusInternalServerError, err, tesseraUnexpectedResult)
 	}
 	scBytes, err := util.CreateAndSignCheckpoint(ctx, viper.GetString("rekor_server.hostname"), params.TreeID, checkpoint.Size, checkpoint.Hash, api.signer)
 	if err != nil {

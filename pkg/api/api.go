@@ -61,15 +61,32 @@ func MySQLURI(address, user, pass string, port uint16) string {
 func NewAPI() (*API, error) {
 	ctx := context.Background()
 
-	uri := MySQLURI(
-		viper.GetString("tessera.mysql.address"),
-		viper.GetString("tessera.mysql.user"),
-		viper.GetString("tessera.mysql.password"),
-		viper.GetUint16("tessera.mysql.port"),
-	)
-	lifetime, maxOpen, maxIdle := viper.GetDuration("tessera.mysql.conn_max_lifetime"), viper.GetInt("tessera.mysql.max_open_connections"), viper.GetInt("tessera.mysql.max_idle_connections")
-	cfg := tessera.NewDBConfig(uri, lifetime, maxOpen, maxIdle)
-	tesseraClient := tessera.NewTesseraClient(&cfg, viper.GetDuration("tessera.batch_max_age"), viper.GetUint("tessera.batch_max_size"))
+	maxAge := viper.GetDuration("tessera.batch_max_age")
+	maxSize := viper.GetUint("tessera.batch_max_size")
+
+	var storageOption tessera.Option
+	switch storage := viper.GetString("tessera_storage"); storage {
+	case "posix":
+		storageDir := viper.GetString("tessera.posix.storage_dir")
+		if storageDir == "" {
+			return nil, fmt.Errorf("invalid posix storage directory")
+		}
+		fileConfig := tessera.NewFileConfig(storageDir)
+		storageOption = tessera.WithPosix(&fileConfig)
+	case "mysql":
+		uri := MySQLURI(
+			viper.GetString("tessera.mysql.address"),
+			viper.GetString("tessera.mysql.user"),
+			viper.GetString("tessera.mysql.password"),
+			viper.GetUint16("tessera.mysql.port"),
+		)
+		lifetime, maxOpen, maxIdle := viper.GetDuration("tessera.mysql.conn_max_lifetime"), viper.GetInt("tessera.mysql.max_open_connections"), viper.GetInt("tessera.mysql.max_idle_connections")
+		dbConfig := tessera.NewDBConfig(uri, lifetime, maxOpen, maxIdle)
+		storageOption = tessera.WithMySQL(&dbConfig)
+	default:
+		return nil, fmt.Errorf("invalid storage provider %s", storage)
+	}
+	tesseraClient := tessera.NewTesseraClient(maxAge, maxSize, storageOption)
 
 	log.Logger.Infof("Starting Rekor server")
 
@@ -104,7 +121,7 @@ func NewAPI() (*API, error) {
 
 	return &API{
 		// Transparency Log Stuff
-		tesseraClient: &tesseraClient,
+		tesseraClient: tesseraClient,
 		// Signing/verifying fields
 		pubkey:     string(pubkey),
 		pubkeyHash: hex.EncodeToString(pubkeyHashBytes[:]),
