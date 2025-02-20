@@ -41,14 +41,8 @@ var (
 	enablePprof bool
 	// these map to the operationId as defined in openapi.yaml file
 	operationIDs = []string{
-		"searchIndex",
 		"getLogInfo",
-		"getPublicKey",
-		"getLogProof",
 		"createLogEntry",
-		"getLogEntryByIndex",
-		"getLogEntryByUUID",
-		"searchLogQuery",
 	}
 )
 
@@ -91,9 +85,6 @@ func init() {
 	rootCmd.PersistentFlags().Uint("trillian_log_server.tlog_id", 0, "Trillian tree id")
 	rootCmd.PersistentFlags().String("trillian_log_server.sharding_config", "", "path to config file for inactive shards, in JSON or YAML")
 
-	rootCmd.PersistentFlags().Bool("enable_stable_checkpoint", true, "publish stable checkpoints to Redis. When disabled, gossiping may not be possible if the log checkpoint updates too frequently")
-	rootCmd.PersistentFlags().Uint("publish_frequency", 5, "how often to publish a new checkpoint, in minutes")
-
 	hostname, err := os.Hostname()
 	if err != nil {
 		hostname = "localhost"
@@ -114,33 +105,14 @@ Memory and file-based signers should only be used for testing.`)
 
 	rootCmd.PersistentFlags().Uint16("port", 3000, "Port to bind to")
 
-	rootCmd.PersistentFlags().Bool("enable_retrieve_api", true, "enables Redis-based index API endpoint")
-	_ = rootCmd.PersistentFlags().MarkDeprecated("enable_retrieve_api", "this flag is deprecated in favor of enabled_api_endpoints (searchIndex)")
-	rootCmd.PersistentFlags().String("search_index.storage_provider", "redis",
-		`Index Storage provider to use. Valid options are: [redis, mysql].`)
-	rootCmd.PersistentFlags().String("redis_server.address", "127.0.0.1", "Redis server address")
-	rootCmd.PersistentFlags().Uint16("redis_server.port", 6379, "Redis server port")
-	rootCmd.PersistentFlags().String("redis_server.password", "", "Redis server password")
-	rootCmd.PersistentFlags().Bool("redis_server.enable-tls", false, "Whether to enable TLS verification when connecting to Redis endpoint")
-	rootCmd.PersistentFlags().Bool("redis_server.insecure-skip-verify", false, "Whether to skip TLS verification when connecting to Redis endpoint, only applicable when 'redis_server.enable-tls' is set to 'true'")
 	rootCmd.PersistentFlags().String("trillian_log_server.tls_ca_cert", "", "Certificate file to use for secure connections with Trillian server")
 	rootCmd.PersistentFlags().Bool("trillian_log_server.tls", false, "Use TLS when connecting to Trillian Server")
-
-	rootCmd.PersistentFlags().Bool("enable_attestation_storage", false, "enables rich attestation storage")
-	rootCmd.PersistentFlags().String("attestation_storage_bucket", "", "url for attestation storage bucket")
-	rootCmd.PersistentFlags().Int("max_attestation_size", 100*1024, "max size for attestation storage, in bytes")
 
 	rootCmd.PersistentFlags().StringSlice("enabled_api_endpoints", operationIDs, "list of API endpoints to enable using operationId from openapi.yaml")
 
 	rootCmd.PersistentFlags().Uint64("max_request_body_size", 0, "maximum size for HTTP request body, in bytes; set to 0 for unlimited")
 	rootCmd.PersistentFlags().Uint64("max_jar_metadata_size", 1048576, "maximum permitted size for jar META-INF/ files, in bytes; set to 0 for unlimited")
 	rootCmd.PersistentFlags().Uint64("max_apk_metadata_size", 1048576, "maximum permitted size for apk .SIGN and .PKGINFO files, in bytes; set to 0 for unlimited")
-
-	rootCmd.PersistentFlags().String("search_index.mysql.dsn", "", "DSN for index storage using MySQL")
-	rootCmd.PersistentFlags().Duration("search_index.mysql.conn_max_idletime", 0*time.Second, "maximum connection idle time")
-	rootCmd.PersistentFlags().Duration("search_index.mysql.conn_max_lifetime", 0*time.Second, "maximum connection lifetime")
-	rootCmd.PersistentFlags().Int("search_index.mysql.max_open_connections", 0, "maximum open connections")
-	rootCmd.PersistentFlags().Int("search_index.mysql.max_idle_connections", 0, "maximum idle connections")
 
 	rootCmd.PersistentFlags().String("http-request-id-header-name", middleware.RequestIDHeader, "name of HTTP Request Header to use as request correlation ID")
 	rootCmd.PersistentFlags().String("trace-string-prefix", "", "if set, this will be used to prefix the 'trace' field when outputting structured logs")

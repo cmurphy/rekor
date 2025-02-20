@@ -82,9 +82,6 @@ rekor-cli: $(SRCS) ## Build the rekor command-line interface
 rekor-server: $(SRCS) ## Build the rekor server
 	CGO_ENABLED=0 go build -trimpath -ldflags "$(SERVER_LDFLAGS)" -o rekor-server ./cmd/rekor-server
 
-backfill-index: $(SRCS) ## Build the backfill-index utility
-	CGO_ENABLED=0 go build -trimpath -ldflags "$(SERVER_LDFLAGS)" -o backfill-index ./cmd/backfill-index
-
 test: ## Run all tests
 	go test ./...
 
@@ -120,12 +117,6 @@ ko: ## Build and publish container images using ko
 		--platform=all --tags $(GIT_VERSION) --tags $(GIT_HASH) \
 		--image-refs rekorCliImagerefs github.com/sigstore/rekor/cmd/rekor-cli
 
-	# backfill-index
-	LDFLAGS="$(SERVER_LDFLAGS)" GIT_HASH=$(GIT_HASH) GIT_VERSION=$(GIT_VERSION) \
-	ko publish --base-import-paths \
-		--platform=all --tags $(GIT_VERSION) --tags $(GIT_HASH) \
-		--image-refs bIndexImagerefs github.com/sigstore/rekor/cmd/backfill-index
-
 deploy: ## Deploy to Kubernetes using ko
 	LDFLAGS="$(SERVER_LDFLAGS)" GIT_HASH=$(GIT_HASH) GIT_VERSION=$(GIT_VERSION) ko apply -f config/
 
@@ -149,11 +140,6 @@ ko-local: ## Build container images locally using ko
 	ko publish --base-import-paths \
 		--tags $(GIT_VERSION) --tags $(GIT_HASH) --image-refs cliImagerefs \
 		github.com/sigstore/rekor/cmd/rekor-cli
-
-	KO_DOCKER_REPO=ko.local LDFLAGS="$(SERVER_LDFLAGS)" GIT_HASH=$(GIT_HASH) GIT_VERSION=$(GIT_VERSION) \
-	ko publish --base-import-paths \
-		--tags $(GIT_VERSION) --tags $(GIT_HASH) --image-refs indexImagerefs \
-		github.com/sigstore/rekor/cmd/backfill-index
 
 fuzz: ## Run fuzz tests for a configured duration
 	go test -fuzz FuzzCreateEntryIDFromParts -fuzztime $(FUZZ_DURATION) ./pkg/sharding

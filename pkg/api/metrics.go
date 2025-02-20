@@ -34,11 +34,6 @@ var (
 		Help: "The status of publishing events to Pub/Sub",
 	}, []string{"event", "content_type", "status"})
 
-	metricIndexStorageLatency = promauto.NewSummaryVec(prometheus.SummaryOpts{
-		Name: "rekor_index_storage_latency_summary",
-		Help: "Latency of backend index insertion by success/failure",
-	}, []string{"success"})
-
 	MetricLatency = promauto.NewHistogramVec(prometheus.HistogramOpts{
 		Name: "rekor_api_latency",
 		Help: "Api Latency on calls",
@@ -62,11 +57,6 @@ var (
 		Name: "rekor_qps_by_api",
 		Help: "Api QPS by path, method, and response code",
 	}, []string{"path", "method", "code"})
-
-	CheckpointPublishCount = promauto.NewCounterVec(prometheus.CounterOpts{
-		Name: "rekor_checkpoint_publish",
-		Help: "Checkpoint publishing by shard and code",
-	}, []string{"shard", "code"})
 
 	_ = promauto.NewGaugeFunc(
 		prometheus.GaugeOpts{

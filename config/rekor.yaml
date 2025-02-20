@@ -52,14 +52,10 @@ spec:
           "--trillian_log_server.address=trillian-server",
           "--trillian_log_server.port=8090",
           "--rekor_server.address=0.0.0.0",
-          "--redis_server.address=10.234.175.59",
-          "--redis_server.port=6379",
           "--trillian_log_server.tlog_id=3904496407287907110",
           "--log_type=prod",
           "--rekor_server.signer=$(KMS)",
           "--trillian_log_server.sharding_config=/sharding/sharding-config.yaml",
-          "--enable_attestation_storage=$(ENABLE_ATTESTATION_STORAGE)",
-          "--attestation_storage_bucket=$(ATTESTATION_BUCKET)"
         ]
         volumeMounts:
         - name: sharding-config
@@ -70,16 +66,6 @@ spec:
             configMapKeyRef:
               name: rekor-config
               key: kms
-        - name: ENABLE_ATTESTATION_STORAGE
-          valueFrom:
-            configMapKeyRef:
-              name: rekor-config
-              key: enable_attestation_storage
-        - name: ATTESTATION_BUCKET
-          valueFrom:
-            configMapKeyRef:
-              name: rekor-config
-              key: attestation_bucket
         resources:
           requests:
             memory: "1G"

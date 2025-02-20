@@ -20,7 +20,6 @@ services:
       context: .
       target: "test"
     environment:
-      TMPDIR: /var/run/attestations # workaround for https://github.com/google/go-cloud/issues/3294
       PUBSUB_EMULATOR_HOST: gcp-pubsub-emulator:8085
     command: [
       "rekor-server",
@@ -28,18 +27,11 @@ services:
       "serve",
       "--trillian_log_server.address=trillian-log-server",
       "--trillian_log_server.port=8090",
-      "--redis_server.address=redis-server",
-      "--redis_server.port=6379",
-      "--redis_server.password=test",
       "--rekor_server.address=0.0.0.0",
       "--rekor_server.signer=memory",
-      "--enable_attestation_storage",
-      "--attestation_storage_bucket=file:///var/run/attestations",
       "--max_request_body_size=32792576",
       "--rekor_server.new_entry_publisher=gcppubsub://projects/test-project/topics/new-entry",
       "--rekor_server.publish_events_json=true",
-      "--search_index.storage_provider=${INDEX_BACKEND:-mysql}",
-      "--search_index.mysql.dsn=test:zaphod@tcp(mysql:3306)/test",
       ]
     ports:
       - "3000:3000"

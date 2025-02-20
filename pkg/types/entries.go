@@ -42,13 +42,6 @@ type EntryImpl interface {
 	Insertable() (bool, error)           // denotes whether the entry that was unmarshalled has the writeOnly fields required to validate and insert into the log
 }
 
-// EntryWithAttestationImpl specifies the behavior of a versioned type that also stores attestations
-type EntryWithAttestationImpl interface {
-	EntryImpl
-	AttestationKey() string                // returns the key used to look up the attestation from storage (should be sha256:digest)
-	AttestationKeyValue() (string, []byte) // returns the key to be used when storing the attestation as well as the attestation itself
-}
-
 // ProposedEntryIterator is an iterator over a list of proposed entries
 type ProposedEntryIterator interface {
 	models.ProposedEntry

@@ -37,14 +37,6 @@ type TlogClient struct {
 	LogInfo models.LogInfo
 }
 
-func (m *TlogClient) GetLogProof(_ *tlog.GetLogProofParams, _ ...tlog.ClientOption) (*tlog.GetLogProofOK, error) {
-	return &tlog.GetLogProofOK{
-		Payload: &models.ConsistencyProof{
-			Hashes:   m.Proof,
-			RootHash: &m.Root,
-		}}, nil
-}
-
 func (m *TlogClient) GetLogInfo(_ *tlog.GetLogInfoParams, _ ...tlog.ClientOption) (*tlog.GetLogInfoOK, error) {
 	return &tlog.GetLogInfoOK{
 		Payload: &m.LogInfo,

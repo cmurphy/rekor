@@ -45,18 +45,3 @@ builds:
   ldflags:
   - -extldflags "-static"
   - "{{ .Env.LDFLAGS }}"
-
-- id: backfill-index
-  dir: .
-  main: ./cmd/backfill-index
-  env:
-  - CGO_ENABLED=0
-  flags:
-  - -trimpath
-  - --tags
-  - "{{ .Env.GIT_HASH }}"
-  - --tags
-  - "{{ .Env.GIT_VERSION }}"
-  ldflags:
-  - -extldflags "-static"
-  - "{{ .Env.LDFLAGS }}"

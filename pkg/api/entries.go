@@ -28,16 +28,12 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
-	"time"
 
 	"github.com/cyberphone/json-canonicalization/go/src/webpki.org/jsoncanonicalizer"
-	"github.com/go-openapi/runtime"
 	"github.com/go-openapi/runtime/middleware"
 	"github.com/go-openapi/strfmt"
 	"github.com/go-openapi/swag"
-	"github.com/google/trillian"
 	ttypes "github.com/google/trillian/types"
 	"github.com/spf13/viper"
 	"github.com/transparency-dev/merkle/rfc6962"
@@ -61,10 +57,6 @@ import (
 	"github.com/sigstore/sigstore/pkg/signature/options"
 )
 
-const (
-	maxSearchQueries = 10
-)
-
 func signEntry(ctx context.Context, signer signature.Signer, entry models.LogEntryAnon) ([]byte, error) {
 	payload, err := entry.MarshalBinary()
 	if err != nil {
@@ -79,125 +71,6 @@ func signEntry(ctx context.Context, signer signature.Signer, entry models.LogEnt
 		return nil, fmt.Errorf("signing error: %w", err)
 	}
 	return signature, nil
-}
-
-// logEntryFromLeaf creates a signed LogEntry struct from trillian structs
-func logEntryFromLeaf(ctx context.Context, leaf *trillian.LogLeaf, signedLogRoot *trillian.SignedLogRoot,
-	proof *trillian.Proof, tid int64, ranges sharding.LogRanges, cachedCheckpoints map[int64]string) (models.LogEntry, error) {
-
-	log.ContextLogger(ctx).Debugf("log entry from leaf %d", leaf.GetLeafIndex())
-	root := &ttypes.LogRootV1{}
-	if err := root.UnmarshalBinary(signedLogRoot.LogRoot); err != nil {
-		return nil, err
-	}
-	hashes := []string{}
-	for _, hash := range proof.Hashes {
-		hashes = append(hashes, hex.EncodeToString(hash))
-	}
-
-	virtualIndex := sharding.VirtualLogIndex(leaf.GetLeafIndex(), tid, ranges)
-	logRange, err := ranges.GetLogRangeByTreeID(tid)
-	if err != nil {
-		return nil, err
-	}
-
-	logEntryAnon := models.LogEntryAnon{
-		LogID:          swag.String(logRange.LogID),
-		LogIndex:       &virtualIndex,
-		Body:           leaf.LeafValue,
-		IntegratedTime: swag.Int64(leaf.IntegrateTimestamp.AsTime().Unix()),
-	}
-
-	signature, err := signEntry(ctx, logRange.Signer, logEntryAnon)
-	if err != nil {
-		return nil, fmt.Errorf("signing entry error: %w", err)
-	}
-
-	// If tree ID is inactive, use cached checkpoint
-	var sc string
-	val, ok := cachedCheckpoints[tid]
-	if ok {
-		sc = val
-	} else {
-		scBytes, err := util.CreateAndSignCheckpoint(ctx, viper.GetString("rekor_server.hostname"), tid, root.TreeSize, root.RootHash, logRange.Signer)
-		if err != nil {
-			return nil, err
-		}
-		sc = string(scBytes)
-	}
-
-	inclusionProof := models.InclusionProof{
-		TreeSize:   swag.Int64(int64(root.TreeSize)),
-		RootHash:   swag.String(hex.EncodeToString(root.RootHash)),
-		LogIndex:   swag.Int64(proof.GetLeafIndex()),
-		Hashes:     hashes,
-		Checkpoint: stringPointer(sc),
-	}
-
-	uuid := hex.EncodeToString(leaf.MerkleLeafHash)
-	treeID := fmt.Sprintf("%x", tid)
-	entryIDstruct, err := sharding.CreateEntryIDFromParts(treeID, uuid)
-	if err != nil {
-		return nil, fmt.Errorf("error creating EntryID from active treeID %v and uuid %v: %w", treeID, uuid, err)
-	}
-	entryID := entryIDstruct.ReturnEntryIDString()
-
-	if viper.GetBool("enable_attestation_storage") {
-		pe, err := models.UnmarshalProposedEntry(bytes.NewReader(leaf.LeafValue), runtime.JSONConsumer())
-		if err != nil {
-			return nil, err
-		}
-		eimpl, err := types.UnmarshalEntry(pe)
-		if err != nil {
-			return nil, err
-		}
-
-		if entryWithAtt, ok := eimpl.(types.EntryWithAttestationImpl); ok {
-			var att []byte
-			var fetchErr error
-			attKey := entryWithAtt.AttestationKey()
-			// if we're given a key by the type logic, let's try that first
-			if attKey != "" {
-				att, fetchErr = attestationStorageClient.FetchAttestation(ctx, attKey)
-				if fetchErr != nil {
-					log.ContextLogger(ctx).Debugf("error fetching attestation by key, trying by UUID: %s %v", attKey, fetchErr)
-				}
-			}
-			// if looking up by key failed or we weren't able to generate a key, try looking up by uuid
-			if attKey == "" || fetchErr != nil {
-				att, fetchErr = attestationStorageClient.FetchAttestation(ctx, entryIDstruct.UUID)
-				if fetchErr != nil {
-					log.ContextLogger(ctx).Debugf("error fetching attestation by uuid: %s %v", entryIDstruct.UUID, fetchErr)
-				}
-			}
-			if fetchErr == nil {
-				logEntryAnon.Attestation = &models.LogEntryAnonAttestation{
-					Data: att,
-				}
-			}
-		}
-	}
-
-	logEntryAnon.Verification = &models.LogEntryAnonVerification{
-		InclusionProof:       &inclusionProof,
-		SignedEntryTimestamp: strfmt.Base64(signature),
-	}
-
-	return models.LogEntry{
-		entryID: logEntryAnon}, nil
-}
-
-// GetLogEntryAndProofByIndexHandler returns the entry and inclusion proof for a specified log index
-func GetLogEntryByIndexHandler(params entries.GetLogEntryByIndexParams) middleware.Responder {
-	ctx := params.HTTPRequest.Context()
-	logEntry, err := retrieveLogEntryByIndex(ctx, int(params.LogIndex))
-	if err != nil {
-		if errors.Is(err, ErrNotFound) {
-			return handleRekorAPIError(params, http.StatusNotFound, fmt.Errorf("grpc error: %w", err), "")
-		}
-		return handleRekorAPIError(params, http.StatusInternalServerError, err, err.Error())
-	}
-	return entries.NewGetLogEntryByIndexOK().WithPayload(logEntry)
 }
 
 func getArtifactHashValue(entry types.EntryImpl) crypto.Hash {
@@ -357,45 +230,6 @@ func createLogEntry(params entries.CreateLogEntryParams) (models.LogEntry, middl
 		IntegratedTime: swag.Int64(queuedLeaf.IntegrateTimestamp.AsTime().Unix()),
 	}
 
-	if indexStorageClient != nil {
-		go func() {
-			start := time.Now()
-			var err error
-			defer func() {
-				labels := map[string]string{
-					"success": strconv.FormatBool(err == nil),
-				}
-				metricIndexStorageLatency.With(labels).Observe(float64(time.Since(start)))
-			}()
-			keys, err := entry.IndexKeys()
-			if err != nil {
-				log.ContextLogger(ctx).Errorf("getting entry index keys: %v", err)
-				return
-			}
-			if err := addToIndex(context.Background(), keys, entryID); err != nil {
-				log.ContextLogger(ctx).Errorf("adding keys to index: %v", err)
-			}
-		}()
-	}
-
-	if viper.GetBool("enable_attestation_storage") {
-		if entryWithAtt, ok := entry.(types.EntryWithAttestationImpl); ok {
-			attKey, attVal := entryWithAtt.AttestationKeyValue()
-			if attVal != nil {
-				go func() {
-					if err := storeAttestation(context.Background(), attKey, attVal); err != nil {
-						// entryIDstruct.UUID
-						log.ContextLogger(ctx).Debugf("error storing attestation: %s", err)
-					} else {
-						log.ContextLogger(ctx).Debugf("stored attestation for uuid %s with filename %s", entryIDstruct.UUID, attKey)
-					}
-				}()
-			} else {
-				log.ContextLogger(ctx).Infof("no attestation returned for %s", uuid)
-			}
-		}
-	}
-
 	signature, err := signEntry(ctx, api.logRanges.GetActive().Signer, logEntryAnon)
 	if err != nil {
 		return nil, handleRekorAPIError(params, http.StatusInternalServerError, fmt.Errorf("signing entry error: %w", err), signingError)
@@ -519,232 +353,7 @@ func getEntryURL(locationURL url.URL, uuid string) strfmt.URI {
 
 }
 
-// GetLogEntryByUUIDHandler gets log entry and inclusion proof for specified UUID aka merkle leaf hash
-func GetLogEntryByUUIDHandler(params entries.GetLogEntryByUUIDParams) middleware.Responder {
-	logEntry, err := retrieveLogEntry(params.HTTPRequest.Context(), params.EntryUUID)
-	if err != nil {
-		if errors.Is(err, ErrNotFound) {
-			return handleRekorAPIError(params, http.StatusNotFound, err, "")
-		}
-		var validationErr *types.InputValidationError
-		if errors.As(err, &validationErr) {
-			return handleRekorAPIError(params, http.StatusBadRequest, err, fmt.Sprintf("validation error: %v", err))
-		}
-		return handleRekorAPIError(params, http.StatusInternalServerError, err, trillianCommunicationError)
-	}
-	return entries.NewGetLogEntryByUUIDOK().WithPayload(logEntry)
-}
-
-// SearchLogQueryHandler searches log by index, UUID, or proposed entry and returns array of entries found with inclusion proofs
-func SearchLogQueryHandler(params entries.SearchLogQueryParams) middleware.Responder {
-	httpReqCtx := params.HTTPRequest.Context()
-	resultPayload := []models.LogEntry{}
-
-	totalQueries := len(params.Entry.EntryUUIDs) + len(params.Entry.Entries()) + len(params.Entry.LogIndexes)
-	if totalQueries > maxSearchQueries {
-		return handleRekorAPIError(params, http.StatusUnprocessableEntity, fmt.Errorf(maxSearchQueryLimit, maxSearchQueries), fmt.Sprintf(maxSearchQueryLimit, maxSearchQueries))
-	}
-
-	if len(params.Entry.EntryUUIDs) > 0 || len(params.Entry.Entries()) > 0 {
-		var searchHashes [][]byte
-		for _, entryID := range params.Entry.EntryUUIDs {
-			// if we got this far, then entryID is either a 64 or 80 character hex string
-			err := sharding.ValidateEntryID(entryID)
-			if err == nil {
-				logEntry, err := retrieveLogEntry(httpReqCtx, entryID)
-				if err != nil && !errors.Is(err, ErrNotFound) {
-					return handleRekorAPIError(params, http.StatusInternalServerError, err, fmt.Sprintf("error getting log entry for %s", entryID))
-				} else if err == nil {
-					resultPayload = append(resultPayload, logEntry)
-				}
-				continue
-			} else if len(entryID) == sharding.EntryIDHexStringLen {
-				// if ValidateEntryID failed and this is a full length entryID, then we can't search for it
-				return handleRekorAPIError(params, http.StatusBadRequest, err, fmt.Sprintf("invalid entryID %s", entryID))
-			}
-			// At this point, check if we got a uuid instead of an EntryID, so search for the hash later
-			uuid := entryID
-			if err := sharding.ValidateUUID(uuid); err != nil {
-				return handleRekorAPIError(params, http.StatusBadRequest, err, fmt.Sprintf("invalid uuid %s", uuid))
-			}
-			hash, err := hex.DecodeString(uuid)
-			if err != nil {
-				return handleRekorAPIError(params, http.StatusBadRequest, err, malformedUUID)
-			}
-			searchHashes = append(searchHashes, hash)
-		}
-
-		entries := params.Entry.Entries()
-		for _, e := range entries {
-			entry, err := types.UnmarshalEntry(e)
-			if err != nil {
-				return handleRekorAPIError(params, http.StatusBadRequest, fmt.Errorf("unmarshalling entry: %w", err), err.Error())
-			}
-
-			leaf, err := types.CanonicalizeEntry(httpReqCtx, entry)
-			if err != nil {
-				return handleRekorAPIError(params, http.StatusBadRequest, fmt.Errorf("canonicalizing entry: %w", err), err.Error())
-			}
-			hasher := rfc6962.DefaultHasher
-			leafHash := hasher.HashLeaf(leaf)
-			searchHashes = append(searchHashes, leafHash)
-		}
-
-		searchByHashResults := make([]map[int64]*trillian.GetEntryAndProofResponse, len(searchHashes))
-		for i, hash := range searchHashes {
-			var results map[int64]*trillian.GetEntryAndProofResponse
-			for _, shard := range api.logRanges.AllShards() {
-				tcs := trillianclient.NewTrillianClient(httpReqCtx, api.logClient, shard)
-				resp := tcs.GetLeafAndProofByHash(hash)
-				switch resp.Status {
-				case codes.OK:
-					leafResult := resp.GetLeafAndProofResult
-					if leafResult != nil && leafResult.Leaf != nil {
-						if results == nil {
-							results = map[int64]*trillian.GetEntryAndProofResponse{}
-						}
-						results[shard] = resp.GetLeafAndProofResult
-					}
-				case codes.NotFound:
-					// do nothing here, do not throw 404 error
-					continue
-				default:
-					return handleRekorAPIError(params, http.StatusInternalServerError, fmt.Errorf("error getLeafAndProofByHash(%s): code: %v, msg %v", hex.EncodeToString(hash), resp.Status, resp.Err), trillianCommunicationError)
-				}
-			}
-			searchByHashResults[i] = results
-		}
-
-		for _, hashMap := range searchByHashResults {
-			for shard, leafResp := range hashMap {
-				if leafResp == nil {
-					continue
-				}
-				logEntry, err := logEntryFromLeaf(httpReqCtx, leafResp.Leaf, leafResp.SignedLogRoot, leafResp.Proof, shard, api.logRanges, api.cachedCheckpoints)
-				if err != nil {
-					return handleRekorAPIError(params, http.StatusInternalServerError, err, err.Error())
-				}
-				resultPayload = append(resultPayload, logEntry)
-			}
-		}
-	}
-
-	if len(params.Entry.LogIndexes) > 0 {
-		for _, logIndex := range params.Entry.LogIndexes {
-			logEntry, err := retrieveLogEntryByIndex(httpReqCtx, int(swag.Int64Value(logIndex)))
-			if err != nil && !errors.Is(err, ErrNotFound) {
-				return handleRekorAPIError(params, http.StatusInternalServerError, err, err.Error())
-			} else if err == nil {
-				resultPayload = append(resultPayload, logEntry)
-			}
-		}
-	}
-
-	return entries.NewSearchLogQueryOK().WithPayload(resultPayload)
-}
-
 var ErrNotFound = errors.New("grpc returned 0 leaves with success code")
-
-func retrieveLogEntryByIndex(ctx context.Context, logIndex int) (models.LogEntry, error) {
-	log.ContextLogger(ctx).Infof("Retrieving log entry by index %d", logIndex)
-
-	tid, resolvedIndex := api.logRanges.ResolveVirtualIndex(logIndex)
-	tc := trillianclient.NewTrillianClient(ctx, api.logClient, tid)
-	log.ContextLogger(ctx).Debugf("Retrieving resolved index %v from TreeID %v", resolvedIndex, tid)
-
-	resp := tc.GetLeafAndProofByIndex(resolvedIndex)
-	switch resp.Status {
-	case codes.OK:
-	case codes.NotFound, codes.OutOfRange, codes.InvalidArgument:
-		return models.LogEntry{}, ErrNotFound
-	default:
-		return models.LogEntry{}, fmt.Errorf("grpc err: %w: %s", resp.Err, trillianCommunicationError)
-	}
-
-	result := resp.GetLeafAndProofResult
-	leaf := result.Leaf
-	if leaf == nil {
-		return models.LogEntry{}, ErrNotFound
-	}
-
-	return logEntryFromLeaf(ctx, leaf, result.SignedLogRoot, result.Proof, tid, api.logRanges, api.cachedCheckpoints)
-}
-
-// Retrieve a Log Entry
-// If a tree ID is specified, look in that tree
-// Otherwise, look through all inactive and active shards
-func retrieveLogEntry(ctx context.Context, entryUUID string) (models.LogEntry, error) {
-	log.ContextLogger(ctx).Debugf("Retrieving log entry %v", entryUUID)
-
-	uuid, err := sharding.GetUUIDFromIDString(entryUUID)
-	if err != nil {
-		return nil, sharding.ErrPlainUUID
-	}
-
-	// Get the tree ID and check that shard for the entry
-	tid, err := sharding.TreeID(entryUUID)
-	if err == nil {
-		return retrieveUUIDFromTree(ctx, uuid, tid)
-	}
-
-	// If we got a UUID instead of an EntryID, search all shards
-	if errors.Is(err, sharding.ErrPlainUUID) {
-		trees := []sharding.LogRange{api.logRanges.GetActive()}
-		trees = append(trees, api.logRanges.GetInactive()...)
-
-		for _, t := range trees {
-			logEntry, err := retrieveUUIDFromTree(ctx, uuid, t.TreeID)
-			if err != nil {
-				if errors.Is(err, ErrNotFound) {
-					continue
-				}
-				return nil, err
-			}
-			return logEntry, nil
-		}
-		return nil, ErrNotFound
-	}
-
-	return nil, err
-}
-
-func retrieveUUIDFromTree(ctx context.Context, uuid string, tid int64) (models.LogEntry, error) {
-	log.ContextLogger(ctx).Debugf("Retrieving log entry %v from tree %d", uuid, tid)
-
-	hashValue, err := hex.DecodeString(uuid)
-	if err != nil {
-		return models.LogEntry{}, &types.InputValidationError{Err: fmt.Errorf("parsing UUID: %w", err)}
-	}
-
-	tc := trillianclient.NewTrillianClient(ctx, api.logClient, tid)
-	log.ContextLogger(ctx).Debugf("Attempting to retrieve UUID %v from TreeID %v", uuid, tid)
-
-	resp := tc.GetLeafAndProofByHash(hashValue)
-	switch resp.Status {
-	case codes.OK:
-		result := resp.GetLeafAndProofResult
-		if resp.Err != nil {
-			// this shouldn't be possible since GetLeafAndProofByHash verifies the inclusion proof using a computed leaf hash
-			// so this is just a defensive check
-			if result.Leaf == nil {
-				return models.LogEntry{}, ErrNotFound
-			}
-			return models.LogEntry{}, err
-		}
-
-		logEntry, err := logEntryFromLeaf(ctx, result.Leaf, result.SignedLogRoot, result.Proof, tid, api.logRanges, api.cachedCheckpoints)
-		if err != nil {
-			return models.LogEntry{}, fmt.Errorf("could not create log entry from leaf: %w", err)
-		}
-		return logEntry, nil
-
-	case codes.NotFound:
-		return models.LogEntry{}, ErrNotFound
-	default:
-		log.ContextLogger(ctx).Errorf("Unexpected response code while attempting to retrieve UUID %v from TreeID %v: %v", uuid, tid, resp.Status)
-		return models.LogEntry{}, errors.New("unexpected error")
-	}
-}
 
 // handlers for APIs that may be disabled in a given instance
 
@@ -755,31 +364,4 @@ func CreateLogEntryNotImplementedHandler(_ entries.CreateLogEntryParams) middlew
 	}
 
 	return entries.NewCreateLogEntryDefault(http.StatusNotImplemented).WithPayload(err)
-}
-
-func GetLogEntryByIndexNotImplementedHandler(_ entries.GetLogEntryByIndexParams) middleware.Responder {
-	err := &models.Error{
-		Code:    http.StatusNotImplemented,
-		Message: "Get Log Entry by Index API not enabled in this Rekor instance",
-	}
-
-	return entries.NewGetLogEntryByIndexDefault(http.StatusNotImplemented).WithPayload(err)
-}
-
-func GetLogEntryByUUIDNotImplementedHandler(_ entries.GetLogEntryByUUIDParams) middleware.Responder {
-	err := &models.Error{
-		Code:    http.StatusNotImplemented,
-		Message: "Get Log Entry by UUID API not enabled in this Rekor instance",
-	}
-
-	return entries.NewGetLogEntryByUUIDDefault(http.StatusNotImplemented).WithPayload(err)
-}
-
-func SearchLogQueryNotImplementedHandler(_ entries.SearchLogQueryParams) middleware.Responder {
-	err := &models.Error{
-		Code:    http.StatusNotImplemented,
-		Message: "Search Log Query API not enabled in this Rekor instance",
-	}
-
-	return entries.NewSearchLogQueryDefault(http.StatusNotImplemented).WithPayload(err)
 }

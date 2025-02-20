@@ -26,24 +26,19 @@ import (
 
 	"github.com/google/trillian"
 	"github.com/google/trillian/types"
-	"github.com/redis/go-redis/v9"
 	"github.com/spf13/viper"
-	"golang.org/x/exp/slices"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 
 	v1 "github.com/sigstore/protobuf-specs/gen/pb-go/common/v1"
-	"github.com/sigstore/rekor/pkg/indexstorage"
 	"github.com/sigstore/rekor/pkg/log"
 	"github.com/sigstore/rekor/pkg/pubsub"
 	"github.com/sigstore/rekor/pkg/sharding"
 	"github.com/sigstore/rekor/pkg/signer"
-	"github.com/sigstore/rekor/pkg/storage"
 	"github.com/sigstore/rekor/pkg/trillianclient"
 	"github.com/sigstore/rekor/pkg/util"
-	"github.com/sigstore/rekor/pkg/witness"
 	"github.com/sigstore/sigstore/pkg/signature"
 
 	_ "github.com/sigstore/rekor/pkg/pubsub/gcp" // Load GCP pubsub implementation
@@ -95,8 +90,6 @@ type API struct {
 	logClient trillian.TrillianLogClient
 	treeID    int64
 	logRanges sharding.LogRanges
-	// stops checkpoint publishing
-	checkpointPublishCancel context.CancelFunc
 	// Publishes notifications when new entries are added to the log. May be
 	// nil if no publisher is configured.
 	newEntryPublisher pubsub.Publisher
@@ -226,10 +219,7 @@ func NewAPI(treeID uint) (*API, error) {
 }
 
 var (
-	api                      *API
-	attestationStorageClient storage.AttestationStorage
-	indexStorageClient       indexstorage.IndexStorage
-	redisClient              *redis.Client
+	api *API
 )
 
 func ConfigureAPI(treeID uint) {
@@ -239,64 +229,12 @@ func ConfigureAPI(treeID uint) {
 	if err != nil {
 		log.Logger.Panic(err)
 	}
-	if viper.GetBool("enable_retrieve_api") || viper.GetBool("enable_stable_checkpoint") ||
-		slices.Contains(viper.GetStringSlice("enabled_api_endpoints"), "searchIndex") {
-		indexStorageClient, err = indexstorage.NewIndexStorage(viper.GetString("search_index.storage_provider"))
-		if err != nil {
-			log.Logger.Panic(err)
-		}
-	}
-
-	if viper.GetBool("enable_attestation_storage") {
-		attestationStorageClient, err = storage.NewAttestationStorage()
-		if err != nil {
-			log.Logger.Panic(err)
-		}
-	}
-
-	if viper.GetBool("enable_stable_checkpoint") {
-		redisClient = NewRedisClient()
-		checkpointPublisher := witness.NewCheckpointPublisher(context.Background(), api.logClient, api.logRanges.GetActive().TreeID,
-			viper.GetString("rekor_server.hostname"), api.logRanges.GetActive().Signer, redisClient, viper.GetUint("publish_frequency"), CheckpointPublishCount)
-
-		// create context to cancel goroutine on server shutdown
-		ctx, cancel := context.WithCancel(context.Background())
-		api.checkpointPublishCancel = cancel
-		checkpointPublisher.StartPublisher(ctx)
-	}
-}
-
-func NewRedisClient() *redis.Client {
-
-	opts := &redis.Options{
-		Addr:     fmt.Sprintf("%v:%v", viper.GetString("redis_server.address"), viper.GetUint64("redis_server.port")),
-		Password: viper.GetString("redis_server.password"),
-		Network:  "tcp",
-		DB:       0, // default DB
-	}
-
-	// #nosec G402
-	if viper.GetBool("redis_server.enable-tls") {
-		opts.TLSConfig = &tls.Config{
-			InsecureSkipVerify: viper.GetBool("redis_server.insecure-skip-verify"), //nolint: gosec
-		}
-	}
-
-	return redis.NewClient(opts)
 }
 
 func StopAPI() {
-	api.checkpointPublishCancel()
-
 	if api.newEntryPublisher != nil {
 		if err := api.newEntryPublisher.Close(); err != nil {
 			log.Logger.Errorf("shutting down newEntryPublisher: %v", err)
-		}
-	}
-
-	if indexStorageClient != nil {
-		if err := indexStorageClient.Shutdown(); err != nil {
-			log.Logger.Errorf("shutting down indexStorageClient: %v", err)
 		}
 	}
 }
